@@ -529,7 +529,7 @@ Questions = {
     },
     "Question 99": {
         "text": "Vermeld per soort zorgkosten het bedrag.",
-        "type": "text",
+        "type": "tabel",
         "route": "Question 100"
     },
     "Question 100": {
@@ -660,41 +660,26 @@ if current_id and current_id in Questions:
     elif v_type == "tabel":
         import pandas as pd
         
-        # 1. Maak een net Pandas DataFrame aan als basis structuur
-        df_basis = pd.DataFrame([{"Goed Doel": "", "Bedrag (€)": 0}])
+        df_basis = pd.DataFrame([{"Onderwerp": "", "Bedrag": 0}])
         
-        # 2. Toon de interactieve tabel
-        # Let op: we slaan het resultaat nu op via st.data_editor rechtstreeks
         edited_df = st.data_editor(
             df_basis,
             num_rows="dynamic",
-            column_config={
-                "Goed Doel": st.column_config.TextColumn(
-                    "Goed Doel",
-                    placeholder="Bijv. Unicef",
-                    required=True,
-                ),
-                "Bedrag (€)": st.column_config.NumberColumn(
-                    "Bedrag (€)",
-                    placeholder="0",
-                    min_value=0,
-                    step=1,
-                    required=True,
-                )
-            },
-            key=input_key,
-            use_container_width=True
+            use_container_width=True,
+            key=input_key
         )
         
-        # 3. Validatie: Filter lege rijen eruit en zet om naar een lijst voor je log
-        # Omdat edited_df nu een Pandas DataFrame is, filteren en converteren we zo:
         if edited_df is not None and not edited_df.empty:
-            # Filter rijen waar 'Goed Doel' niet leeg is
-            filtered_df = edited_df[edited_df["Goed Doel"].str.strip() != ""]
-            
-            if not filtered_df.empty:
-                # Zet het DataFrame om naar een normale Python lijst van dicts voor je log
-                antwoord = filtered_df.to_dict(orient="records")
+            if "Onderwerp" in edited_df.columns and "Bedrag" in edited_df.columns:
+                filtered_df = edited_df[
+                    (edited_df["Onderwerp"].astype(str).str.strip() != "") & 
+                    (edited_df["Bedrag"] > 0)
+                ]
+                
+                if not filtered_df.empty:
+                    antwoord = filtered_df.to_dict(orient="records")
+                else:
+                    antwoord = None
             else:
                 antwoord = None
         else:
