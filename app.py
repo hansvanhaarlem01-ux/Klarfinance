@@ -660,12 +660,13 @@ if current_id and current_id in Questions:
     elif v_type == "tabel":
         import pandas as pd
         
-        default_data = [{"Goed Doel": "", "Bedrag (€)": 0}]
+        # 1. Maak een net Pandas DataFrame aan als basis structuur
+        df_basis = pd.DataFrame([{"Goed Doel": "", "Bedrag (€)": 0}])
         
         # 2. Toon de interactieve tabel
-        # num_rows="dynamic" zorgt ervoor dat de gebruiker rijen kan toevoegen/verwijderen
+        # Let op: we slaan het resultaat nu op via st.data_editor rechtstreeks
         edited_df = st.data_editor(
-            default_data,
+            df_basis,
             num_rows="dynamic",
             column_config={
                 "Goed Doel": st.column_config.TextColumn(
@@ -685,15 +686,20 @@ if current_id and current_id in Questions:
             use_container_width=True
         )
         
-        # 3. Validatie: Zorg dat het antwoord alleen wordt goedgekeurd als er iets zinvols is ingevuld
-        # We filteren lege rijen eruit
-        geldige_rijen = [row for row in edited_df if row.get("Goed Doel").strip() != ""]
-        
-        if len(geldige_rijen) > 0:
-            antwoord = geldige_rijen
+        # 3. Validatie: Filter lege rijen eruit en zet om naar een lijst voor je log
+        # Omdat edited_df nu een Pandas DataFrame is, filteren en converteren we zo:
+        if edited_df is not None and not edited_df.empty:
+            # Filter rijen waar 'Goed Doel' niet leeg is
+            filtered_df = edited_df[edited_df["Goed Doel"].str.strip() != ""]
+            
+            if not filtered_df.empty:
+                # Zet het DataFrame om naar een normale Python lijst van dicts voor je log
+                antwoord = filtered_df.to_dict(orient="records")
+            else:
+                antwoord = None
         else:
-            antwoord = None # Knop 'Volgende' blijft geblokkeerd tot er minimaal 1 doel staat
-
+            antwoord = None
+            
     else:  # Standaard vrije tekst
         antwoord_veld = st.text_input("Uw antwoord:", key=input_key)
         if antwoord_veld.strip():
