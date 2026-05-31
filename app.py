@@ -3,6 +3,7 @@ import re
 import pandas as pd
 import base64
 import os
+import streamlit.components.v1 as components
 from datetime import datetime
 from PIL import Image  # Voeg deze import toe bovenin je script
 
@@ -599,8 +600,7 @@ Questions = {
     "Question 1": {
         "text": q_vertaling.get("Q1_text"),
         "toelichting": q_vertaling.get("Q1_toelicht"),
-        "type": "choice",
-        "options": JA_NEE_OPTIES,
+        "type": "checkbox"
     },
     "Question 2": {
         "text": q_vertaling.get("Q2_text"),
@@ -1462,8 +1462,19 @@ if current_step == "START":
 
 # --- 2. DE WERKELIJKE VRAGENLIJST (Hier tonen we de formuliertitels) ---
 elif current_step and current_step in STAPPEN:   
+    st.components.v1.html(
+        """
+        <script>
+            var body = window.parent.document.querySelector(".main");
+            if (body) {
+                body.scrollTo({top: 0, behavior: 'auto'});
+            }
+        </script>
+        """,
+        height=0, # Hou het component onzichtbaar
+    )
     stap_info = STAPPEN[current_step]
-    st.caption(f"{t["caption"]}: {current_step}")
+    st.caption(f"{t['caption']}: {current_step}")
     st.subheader(stap_info["titel"])
     
     # Een tijdelijke dictionary om de geldige antwoorden van DEZE pagina in te verzamelen
@@ -1539,6 +1550,12 @@ elif current_step and current_step in STAPPEN:
                 antwoord = antwoord_veld
             elif antwoord_veld:
                 st.error(t["error_date"])
+        
+        elif v_type == "checkbox":
+            # Sla de status direct op via een unieke key
+            privacy_akkoord = st.checkbox(vraag["text"], key=f"cb_{q_id}")
+            # Een checkbox antwoord is direct de boolean waarde zelf (True of False)
+            antwoord = privacy_akkoord
 
         elif v_type == "BSN":
             default_val = str(bestaand_antwoord) if bestaand_antwoord is not None else ""
@@ -1552,7 +1569,6 @@ elif current_step and current_step in STAPPEN:
             default_val = str(bestaand_antwoord) if bestaand_antwoord is not None else ""
             antwoord_veld = st.text_input("E-mailadres:", value=default_val, key=input_key)
             if "@" in antwoord_veld and "." in antwoord_veld:
-                version_antwoord = antwoord_veld
                 antwoord = antwoord_veld
             elif antwoord_veld:
                 st.error(t["error_email"])
@@ -1574,7 +1590,6 @@ elif current_step and current_step in STAPPEN:
                 st.error(t["error_bsn"])
 
         elif v_type == "tabel":
-            # Als er al tabeldata is opgeslagen (als lijst van dicts), laden we die in de editor
             if bestaand_antwoord is not None:
                 df_basis = pd.DataFrame(bestaand_antwoord)
             else:
@@ -1593,10 +1608,14 @@ elif current_step and current_step in STAPPEN:
             if antwoord_veld.strip():
                 antwoord = antwoord_veld.strip()
 
-        # Als één van de vragen op de pagina géén (geldig) antwoord heeft, zetten we de vlag op False
+        # --- VALIDATIE CHECK PER VRAAG ---
         if antwoord is not None:
             pagina_antwoorden[q_id] = antwoord
+        elif v_type == "checkbox":
+            # Bij een checkbox is False ook een geldig antwoordtype voor de pagina_antwoorden dictionary!
+            pagina_antwoorden[q_id] = False
         else:
+            # Alleen tekstvelden, BSN's, etc. die echt 'None' of leeg zijn triggeren dit
             alle_vragen_geldig = False
             
         st.write("---")
@@ -1607,41 +1626,47 @@ elif current_step and current_step in STAPPEN:
     with col1:
         if len(st.session_state.history) > 0:
             if st.button(t["prev_btn"]):
-                # Sla bij het teruggaan óók eventueel gewijzigde antwoorden op de huidige pagina op!
                 st.session_state.antwoorden_log.update(pagina_antwoorden)
-                
                 last_step = st.session_state.history.pop()
                 st.session_state.current_step = last_step
                 st.rerun()
 
     with col2:
         if st.button(t["next_btn"]):
-            if alle_vragen_geldig:
-            # Sla alle antwoorden op
+            # 1. Check specifiek of er een ongevinkte privacy-checkbox op de pagina staat
+            heeft_ongevinkte_privacy = False
+            for q_id, antw in pagina_antwoorden.items():
+                if q_id in Questions and Questions[q_id].get("type") == "checkbox":
+                    if antw is False:  # Als de checkbox expliciet niet is aangevinkt
+                        heeft_ongevinkte_privacy = True
+
+            # 2. NAVIGATIE-AFHANDELING
+            if heeft_ongevinkte_privacy:
+                st.error("⚠️ U dient akkoord te gaan met de privacyverklaring om verder te kunnen gaan.")
+            
+            elif alle_vragen_geldig:
                 st.session_state.antwoorden_log.update(pagina_antwoorden)
                 st.session_state.history.append(current_step)
-        
-        # ROUTING LOGICA PER STAP
+                
                 next_step = None
-        
-        # --- SPECIFIEKE UITZONDERINGS-ROUTING VOOR STAP 3 ---
+                
+                # SPECIFIEKE UITZONDERINGS-ROUTING VOOR STAP 3
                 if current_step == "Stap 3":
-                # We kijken eerst of Question 10 is ingevuld (Route: Partner? Nee -> Q10 getoond)
                     if "Question 10" in pagina_antwoorden:
                         bepalend_antwoord = pagina_antwoorden.get("Question 10")
-                    # Als Q10 er niet is, kijken we naar Question 8 (Route: Partner? Ja -> Q9 getoond)
                     else:
                         bepalend_antwoord = pagina_antwoorden.get("Question 8")
-                
-                    # Haal de route-dictionary op van Stap 3 (waar de vertaalde 'Ja'/'Nee' of 'Yes'/'No' in staan)
+                    
                     route_dict = stap_info.get("route", {})
                     next_step = route_dict.get(str(bepalend_antwoord))
+                
+                # SPECIFIEKE ROUTING VOOR STAP 9
                 elif current_step == "Stap 9":
-                    # Pak het antwoord van Question 50
                     bepalend_antwoord = pagina_antwoorden.get("Question 50")
                     route_dict = stap_info.get("route", {})
                     next_step = route_dict.get(str(bepalend_antwoord))
-                    # --- STANDAARD ROUTERING VOOR ALLE OVERIGE STAPPEN ---
+                
+                # STANDAARD ROUTERING VOOR ALLE OVERIGE STAPPEN
                 elif "route_bepaling" in stap_info:
                     bepalende_vraag = stap_info["route_bepaling"]
                     gegeven_antwoord = pagina_antwoorden.get(bepalende_vraag)
@@ -1650,15 +1675,16 @@ elif current_step and current_step in STAPPEN:
                 else:
                     next_step = stap_info.get("next_step")
 
-                # AFHANDELING VAN DE VOLGENDE STAP
+                # AFHANDELING VAN DE VOLGENDE STAP IN DE STATE
                 if next_step is None or next_step == "END" or next_step not in STAPPEN:
                     st.session_state.current_step = "END"
                 else:
                     st.session_state.current_step = next_step
                 
                 st.rerun()
+                
             else:
-                st.warning(t["warning_empty"])
+                st.warning("Vul alstublieft alle verplichte velden in.")
 
 else:
     # EINDscherm
@@ -1672,4 +1698,3 @@ else:
         st.session_state.antwoorden_log = {}
         st.session_state.history = []
         st.rerun()
-
