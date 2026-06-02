@@ -100,11 +100,23 @@ def show_login_screen():
 
 
 def show_logout_button():
-    """Toont de ingelogde gebruiker en een uitlogknop in de sidebar."""
+    """Toont de ingelogde gebruiker, uitlogknop en admin-knop (indien admin) in de sidebar."""
     if st.session_state.get("user") is None:
         return
+
+    ADMIN_EMAILS = [e.lower() for e in st.secrets.get("ADMIN_EMAILS", [])]
+    is_admin = st.session_state.user.email.lower() in ADMIN_EMAILS
+
     with st.sidebar:
         st.write(f"Ingelogd als: **{st.session_state.user.email}**")
+
+        if is_admin:
+            admin_modus = st.session_state.get("admin_modus", False)
+            knop_label = "📋 Naar vragenlijst" if admin_modus else "⚙️ Admin panel"
+            if st.button(knop_label, use_container_width=True):
+                st.session_state.admin_modus = not admin_modus
+                st.rerun()
+
         if st.button("Uitloggen"):
             st.session_state.clear()
             supabase.auth.sign_out()
