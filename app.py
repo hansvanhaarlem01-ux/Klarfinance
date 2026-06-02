@@ -1730,6 +1730,7 @@ elif current_step and current_step in STAPPEN:
                 # AFHANDELING VAN DE VOLGENDE STAP IN DE STATE
                 if next_step is None or next_step == "END" or next_step not in STAPPEN:
                     st.session_state.current_step = "END"
+                    st.rerun()
                 else:
                     st.session_state.current_step = next_step
                     st.rerun()
