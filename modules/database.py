@@ -37,6 +37,17 @@ except KeyError:
 
 # --- FUNCTIES ---
 
+def _set_auth_token():
+    """Zet het access token van de ingelogde gebruiker op de Supabase client."""
+    try:
+        import streamlit as st
+        token = st.session_state.get("access_token")
+        if token:
+            supabase.auth.set_session(token, token)
+    except Exception:
+        pass
+
+
 def save_to_supabase(
     answers_dict: dict,
     language: str,
@@ -45,29 +56,20 @@ def save_to_supabase(
     vragenlijst_type: str = "belastingaangifte"
 ) -> tuple[bool, str]:
     """
-    Sla de ingevulde antwoorden op in Supabase.
-    Geeft (True, "Succes") terug bij succes, anders (False, foutmelding).
+    Sla de ingevulde antwoorden op via de Supabase client (respecteert RLS).
     """
-    url = f"{_URL}/rest/v1/vragenlijsten"
-    headers = {
-        "apikey": _KEY,
-        "Authorization": f"Bearer {_KEY}",
-        "Content-Type": "application/json",
-        "Prefer": "return=minimal",
-    }
-    payload = {
-        "created_at": datetime.now().isoformat(),
-        "taal": language,
-        "antwoorden": answers_dict,
-        "user_id": user_id,
-        "jaar": jaar,
-        "vragenlijst_type": vragenlijst_type,
-    }
     try:
-        response = requests.post(url, headers=headers, json=payload, timeout=5)
-        if response.status_code in [200, 201]:
-            return True, "Succes"
-        return False, f"Statuscode {response.status_code}: {response.text}"
+        _set_auth_token()
+        payload = {
+            "created_at": datetime.now().isoformat(),
+            "taal": language,
+            "antwoorden": answers_dict,
+            "user_id": user_id,
+            "jaar": jaar,
+            "vragenlijst_type": vragenlijst_type,
+        }
+        supabase.table("vragenlijsten").insert(payload).execute()
+        return True, "Succes"
     except Exception as e:
         return False, str(e)
 
@@ -75,13 +77,14 @@ def save_to_supabase(
 def load_previous_answers(
     user_id: str,
     jaar: int,
-    vragenlijst_type: str = "belastingaangifte"
+    vragenlijst_type: str = "belastingaangifte",
 ) -> dict | None:
     """
     Haal de antwoorden van het vorige jaar op voor deze gebruiker en vragenlijst-type.
     Geeft een dict terug, of None als er niets gevonden is.
     """
     try:
+        _set_auth_token()
         result = (
             supabase.table("vragenlijsten")
             .select("antwoorden")
@@ -108,9 +111,11 @@ def upload_document(
     """
     Upload een bestand naar Supabase Storage.
     Bestanden worden opgeslagen onder: {user_id}/{jaar}/{question_id}/{bestandsnaam}
+
     Geeft (True, publieke_path) terug bij succes, anders (False, foutmelding).
     """
     try:
+        _set_auth_token()
         bestandsnaam = file.name
         pad = f"{user_id}/{jaar}/{question_id}/{bestandsnaam}"
         bestand_bytes = file.read()

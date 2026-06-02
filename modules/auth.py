@@ -49,6 +49,8 @@ def show_login_screen():
                         {"email": email, "password": password}
                     )
                     st.session_state.user = response.user
+                    # Sla het access token op zodat de client RLS-verzoeken kan doen
+                    st.session_state.access_token = response.session.access_token
                     st.rerun()
                 except Exception as e:
                     st.error(f"Inloggen mislukt: {e}")
