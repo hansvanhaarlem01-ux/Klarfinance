@@ -99,6 +99,48 @@ def load_previous_answers(
     return None
 
 
+def upload_document(
+    file,
+    user_id: str,
+    jaar: int,
+    question_id: str,
+) -> tuple[bool, str]:
+    """
+    Upload een bestand naar Supabase Storage.
+    Bestanden worden opgeslagen onder: {user_id}/{jaar}/{question_id}/{bestandsnaam}
+    Geeft (True, publieke_path) terug bij succes, anders (False, foutmelding).
+    """
+    try:
+        bestandsnaam = file.name
+        pad = f"{user_id}/{jaar}/{question_id}/{bestandsnaam}"
+        bestand_bytes = file.read()
+
+        # Upload naar Supabase Storage (overschrijf als het al bestaat)
+        supabase.storage.from_("documenten").upload(
+            path=pad,
+            file=bestand_bytes,
+            file_options={"upsert": "true"}
+        )
+        return True, pad
+    except Exception as e:
+        return False, str(e)
+
+
+def get_document_url(pad: str, geldig_seconden: int = 3600) -> str | None:
+    """
+    Genereer een tijdelijke download-URL voor een opgeslagen document.
+    Standaard geldig voor 1 uur.
+    """
+    try:
+        result = supabase.storage.from_("documenten").create_signed_url(
+            path=pad,
+            expires_in=geldig_seconden
+        )
+        return result.get("signedURL")
+    except Exception:
+        return None
+
+
 def google_address_autocomplete(search_term: str) -> list[str]:
     """
     Geeft een lijst met adressuggesties via de Google Places API.

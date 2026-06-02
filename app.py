@@ -11,6 +11,8 @@ from modules.database import (
     supabase,
     save_to_supabase,
     load_previous_answers,
+    upload_document,
+    get_document_url,
     google_address_autocomplete,
 )
 
@@ -1478,9 +1480,13 @@ elif current_step and current_step in STAPPEN:
                 label_visibility="collapsed"
             )
             if uploaded_file:
-                antwoord = uploaded_file.name
+                ok, pad = upload_document(uploaded_file, st.session_state.user.id, JAAR, q_id)
+                if ok:
+                    antwoord = pad
+                else:
+                    st.error(f"Upload mislukt: {pad}")
             elif bestaand_antwoord:
-                st.info(f"📁 Eerder geüpload bestand: **{bestaand_antwoord}**")
+                st.info(f"📁 Eerder geüpload: **{bestaand_antwoord.split('/')[-1]}**")
                 antwoord = bestaand_antwoord
 
         elif v_type == "multi_bestand_vrij":
@@ -1491,10 +1497,19 @@ elif current_step and current_step in STAPPEN:
                 accept_multiple_files=True
             )
             if uploaded_files:
-                antwoord = [f.name for f in uploaded_files]
+                paden = []
+                for f in uploaded_files:
+                    ok, pad = upload_document(f, st.session_state.user.id, JAAR, q_id)
+                    if ok:
+                        paden.append(pad)
+                    else:
+                        st.error(f"Upload mislukt voor {f.name}: {pad}")
+                if paden:
+                    antwoord = paden
             elif bestaand_antwoord:
                 eerder = bestaand_antwoord if isinstance(bestaand_antwoord, list) else [bestaand_antwoord]
-                st.info("📁 Eerder geüploade bestanden: " + ", ".join(f"**{f}**" for f in eerder))
+                namen = [p.split("/")[-1] for p in eerder]
+                st.info("📁 Eerder geüpload: " + ", ".join(f"**{n}**" for n in namen))
                 antwoord = eerder
 
         elif v_type == "multi_bestand":
@@ -1525,9 +1540,13 @@ elif current_step and current_step in STAPPEN:
                     label_visibility="collapsed"
                 )
                 if upload:
-                    bestanden.append(upload.name)
+                    ok, pad = upload_document(upload, st.session_state.user.id, JAAR, f"{q_id}_{i}")
+                    if ok:
+                        bestanden.append(pad)
+                    else:
+                        st.error(f"Upload mislukt: {pad}")
                 elif eerder_i:
-                    st.info(f"📁 Eerder geüpload: **{eerder_i}**")
+                    st.info(f"📁 Eerder geüpload: **{eerder_i.split('/')[-1]}**")
                     bestanden.append(eerder_i)
 
             # Geldig als minstens één bestand is geüpload
