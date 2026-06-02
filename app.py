@@ -1396,6 +1396,9 @@ if current_step == "START":
                 vorige_antwoorden = load_previous_answers(st.session_state.user.id, JAAR)
                 if vorige_antwoorden:
                     st.session_state.antwoorden_log = vorige_antwoorden
+                    st.toast(f"✅ Eerdere antwoorden geladen ({len(vorige_antwoorden)} vragen)")
+                else:
+                    st.toast("ℹ️ Geen eerdere antwoorden gevonden")
                 st.session_state.previous_loaded = True
             st.session_state.current_step = "Stap 1"
             st.rerun()

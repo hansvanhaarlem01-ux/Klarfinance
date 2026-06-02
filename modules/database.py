@@ -38,12 +38,13 @@ except KeyError:
 # --- FUNCTIES ---
 
 def _set_auth_token():
-    """Zet het access token van de ingelogde gebruiker op de Supabase client."""
+    """Zet de sessie van de ingelogde gebruiker op de Supabase client."""
     try:
         import streamlit as st
-        token = st.session_state.get("access_token")
-        if token:
-            supabase.auth.set_session(token, token)
+        access_token  = st.session_state.get("access_token")
+        refresh_token = st.session_state.get("refresh_token")
+        if access_token and refresh_token:
+            supabase.auth.set_session(access_token, refresh_token)
     except Exception:
         pass
 
