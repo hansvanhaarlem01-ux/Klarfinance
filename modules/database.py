@@ -80,23 +80,28 @@ def load_previous_answers(
     vragenlijst_type: str = "belastingaangifte",
 ) -> dict | None:
     """
-    Haal de antwoorden van het vorige jaar op voor deze gebruiker en vragenlijst-type.
+    Laad antwoorden voor pre-populatie:
+    1. Eerst zoeken naar het huidige jaar (hervatten)
+    2. Als niets gevonden: zoeken naar vorig jaar (pre-populatie)
     Geeft een dict terug, of None als er niets gevonden is.
     """
     try:
         _set_auth_token()
-        result = (
-            supabase.table("vragenlijsten")
-            .select("antwoorden")
-            .eq("user_id", user_id)
-            .eq("jaar", jaar - 1)
-            .eq("vragenlijst_type", vragenlijst_type)
-            .order("created_at", desc=True)
-            .limit(1)
-            .execute()
-        )
-        if result.data:
-            return result.data[0]["antwoorden"]
+
+        # Stap 1: zoek antwoorden van hetzelfde jaar (hervatten)
+        for zoekjaar in [jaar, jaar - 1]:
+            result = (
+                supabase.table("vragenlijsten")
+                .select("antwoorden")
+                .eq("user_id", user_id)
+                .eq("jaar", zoekjaar)
+                .eq("vragenlijst_type", vragenlijst_type)
+                .order("created_at", desc=True)
+                .limit(1)
+                .execute()
+            )
+            if result.data:
+                return result.data[0]["antwoorden"]
     except Exception:
         pass
     return None
