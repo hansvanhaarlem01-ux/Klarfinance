@@ -54,7 +54,8 @@ def save_to_supabase(
     language: str,
     user_id: str,
     jaar: int,
-    vragenlijst_type: str = "belastingaangifte"
+    vragenlijst_type: str = "belastingaangifte",
+    email: str = ""
 ) -> tuple[bool, str]:
     """
     Sla de ingevulde antwoorden op via de Supabase client (respecteert RLS).
@@ -68,6 +69,7 @@ def save_to_supabase(
             "user_id": user_id,
             "jaar": jaar,
             "vragenlijst_type": vragenlijst_type,
+            "email": email,
         }
         supabase.table("vragenlijsten").insert(payload).execute()
         return True, "Succes"
