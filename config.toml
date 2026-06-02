@@ -1,5 +1,0 @@
-[theme]
-primaryColor = "#e75954"          # De hoofdkleur (voor knoppen, actieve tabbladen, etc.)
-backgroundColor = "#d6e2ea"      # De achtergrondkleur van de app
-secondaryBackgroundColor = "#FFFFFF" # De achtergrondkleur van de sidebar en invoervelden
-textColor = "#707070"            # De tekstkleur
