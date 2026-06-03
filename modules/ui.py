@@ -168,6 +168,11 @@ def _inject_base_css():
         [data-testid="stSidebarNav"] {
             display: none !important;
         }
+        /* ── Verberg Streamlit branding en menu ── */
+        #MainMenu { display: none !important; }
+        footer { display: none !important; }
+        [data-testid="stDeployButton"] { display: none !important; }
+
         /* ── Sidebar toggle iconen: wit en correct lettertype ── */
         [data-testid="stBaseButton-headerNoPadding"] [data-testid="stIconMaterial"] {
             color: #ffffff !important;
