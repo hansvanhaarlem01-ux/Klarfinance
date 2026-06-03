@@ -168,9 +168,10 @@ def _inject_base_css():
         [data-testid="stSidebarNav"] {
             display: none !important;
         }
-        /* ── Sidebar toggle: zorg dat Material Icons als icoon renderen ── */
-        [data-testid="stIconMaterial"] {
-            font-family: 'Material Icons', 'Material Symbols Rounded' !important;
+        /* ── Sidebar toggle iconen: wit en correct lettertype ── */
+        [data-testid="stBaseButton-headerNoPadding"] [data-testid="stIconMaterial"] {
+            color: #ffffff !important;
+            font-family: 'Material Symbols Rounded', 'Material Icons' !important;
         }
         /* ── Number input border ── */
         [data-testid="stNumberInput"] input {
