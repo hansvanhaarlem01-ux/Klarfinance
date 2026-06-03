@@ -172,6 +172,8 @@ def _inject_base_css():
         #MainMenu { display: none !important; }
         footer { display: none !important; }
         [data-testid="stDeployButton"] { display: none !important; }
+        [data-testid="stToolbarActions"] { display: none !important; }
+        [data-testid="stStatusWidget"] { display: none !important; }
 
         /* ── Sidebar toggle iconen: wit en correct lettertype ── */
         [data-testid="stBaseButton-headerNoPadding"] [data-testid="stIconMaterial"] {
