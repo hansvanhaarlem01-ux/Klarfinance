@@ -144,6 +144,10 @@ if "data_verstuurd" not in st.session_state:
     st.session_state.data_verstuurd = False
 if "previous_loaded" not in st.session_state:
     st.session_state.previous_loaded = False
+if "toon_melding" not in st.session_state:
+    st.session_state.toon_melding = False
+if "geladen_van_jaar" not in st.session_state:
+    st.session_state.geladen_van_jaar = None
 
 current_step = st.session_state.current_step
 
@@ -224,10 +228,11 @@ UI_TRANSLATION = {
         "file_placeholder": "Kies een bestand...",
         "prev_btn": "Vorige",
         "next_btn": "Volgende",
+        "submit_btn": "Antwoorden versturen",
         "warning_empty": "Vul een geldig antwoord in voordat u verder gaat.",
         "success": "🎉 Bedankt voor het invullen van de vragenlijst!",
         "success_sub": "Uw antwoorden zijn veilig opgeslagen.",
-        "restart_btn": "Opnieuw beginnen",
+        "restart_btn": "Einde, log uit!",
         "error_date": "Ongeldig formaat. Gebruik DD-MM-YYYY.",
         "error_privacy": "⚠️ U dient akkoord te gaan met de privacyverklaring om verder te kunnen gaan.",
         "error_file": "Eerder geüpload bestand",
@@ -254,10 +259,11 @@ UI_TRANSLATION = {
         "file_placeholder": "Choose a file...",
         "prev_btn": "Previous",
         "next_btn": "Next",
+        "submit_btn": "Submit answers",
         "warning_empty": "Please provide a valid answer before proceeding.",
         "success": "🎉 Thank you for completing the questionnaire!",
         "success_sub": "Your answers have been securely saved.",
-        "restart_btn": "Start over",
+        "restart_btn": "Done, log out!",
         "error_date": "Invalid format. Use DD-MM-YYYY.",
         "error_privacy": "⚠️ You must agree to the privacy statement to proceed.",
         "error_file": "File has already been uploaded",
@@ -575,7 +581,10 @@ Het invullen van de vragenlijst duurt ongeveer **10 tot 15 minuten**. U kunt tus
         """,
         "start_button": "🚀 Start nu de vragenlijst",
         "main_title": "Belastingaangifte Vragenlijst",
-        "main_subtitle": "Vul de onderstaande vragen zo nauwkeurig mogelijk in."
+        "main_subtitle": "Vul de onderstaande vragen zo nauwkeurig mogelijk in.",
+        "melding_titel": "Eerdere antwoorden geladen",
+        "melding_tekst": lambda jaar: f"We hebben jouw antwoorden van **{jaar}** alvast geladen in de vragenlijst. Veel antwoorden zullen hetzelfde zijn — pas de antwoorden aan wanneer jouw situatie is gewijzigd. **Alle bestanden moeten wel opnieuw geüpload worden.**",
+        "melding_knop": "Begrepen, start de vragenlijst"
     },
     "EN": {
         "start_title": "Welcome to the Tax Declaration Questionnaire",
@@ -595,7 +604,10 @@ Filling out the questionnaire takes about **10 to 15 minutes**. You can go back 
         """,
         "start_button": "🚀 Start the questionnaire now",
         "main_title": "Tax Declaration Questionnaire",
-        "main_subtitle": "Please answer the questions below as accurately as possible."
+        "main_subtitle": "Please answer the questions below as accurately as possible.",
+        "melding_titel": "Previous answers loaded",
+        "melding_tekst": lambda jaar: f"We have pre-filled the questionnaire with your answers from **{jaar}**. Many answers will be the same — please update them where your situation has changed. **All files will need to be uploaded again.**",
+        "melding_knop": "Got it, start the questionnaire"
     }
 }
 # Dynamische snelkoppeling naar de actieve vragen-taal
@@ -803,10 +815,10 @@ QUESTIONS = {
     "Question 32": {
         "text": q_vertaling.get("Q32_text"),
         "type": "bestand",
-        "depends_on": {
-            "question": "Question 31",
-            "expected_value": q_vertaling.get("yes", "Ja")
-        },
+        "depends_on": [
+            {"question": "Question 28", "expected_value": q_vertaling.get("yes", "Ja")},
+            {"question": "Question 31", "expected_value": q_vertaling.get("yes", "Ja")},
+        ],
     },
     "Question 33": {
         "text": q_vertaling.get("Q33_text"),
@@ -873,10 +885,10 @@ QUESTIONS = {
     "Question 41": {
         "text": q_vertaling.get("Q41_text"),
         "type": "text",
-        "depends_on": {
-            "question": "Question 40",
-            "expected_value": q_vertaling.get("Q40_opts")[2] # Matcht op de 3e optie (andere eigenaar)
-        },
+        "depends_on": [
+            {"question": "Question 39", "expected_value": q_vertaling.get("yes", "Ja")},
+            {"question": "Question 40", "expected_value": q_vertaling.get("Q40_opts")[2]},
+        ],
     },
     "Question 42": {
         "text": q_vertaling.get("Q42_text"),
@@ -898,10 +910,10 @@ QUESTIONS = {
     "Question 44": {
         "text": q_vertaling.get("Q44_text"),
         "type": "bestand",
-        "depends_on": {
-            "question": "Question 43",
-            "expected_value": q_vertaling.get("yes", "Ja")
-        },
+        "depends_on": [
+            {"question": "Question 39", "expected_value": q_vertaling.get("yes", "Ja")},
+            {"question": "Question 43", "expected_value": q_vertaling.get("yes", "Ja")},
+        ],
     },
     "Question 45": {
         "text": q_vertaling.get("Q45_text"),
@@ -915,34 +927,34 @@ QUESTIONS = {
     "Question 46": {
         "text": q_vertaling.get("Q46_text"),
         "type": "datum",
-        "depends_on": {
-            "question": "Question 45",
-            "expected_value": q_vertaling.get("Q45_opts")[0] # Gekocht
-        },
+        "depends_on": [
+            {"question": "Question 39", "expected_value": q_vertaling.get("yes", "Ja")},
+            {"question": "Question 45", "expected_value": q_vertaling.get("Q45_opts")[0]},
+        ],
     },
     "Question 47": {
         "text": q_vertaling.get("Q47_text"),
         "type": "bestand",
-        "depends_on": {
-            "question": "Question 45",
-            "expected_value": q_vertaling.get("Q45_opts")[0]
-        },
+        "depends_on": [
+            {"question": "Question 39", "expected_value": q_vertaling.get("yes", "Ja")},
+            {"question": "Question 45", "expected_value": q_vertaling.get("Q45_opts")[0]},
+        ],
     },
     "Question 48": {
         "text": q_vertaling.get("Q48_text"),
         "type": "datum",
-        "depends_on": {
-            "question": "Question 45",
-            "expected_value": q_vertaling.get("Q45_opts")[1] # Verkocht
-        },
+        "depends_on": [
+            {"question": "Question 39", "expected_value": q_vertaling.get("yes", "Ja")},
+            {"question": "Question 45", "expected_value": q_vertaling.get("Q45_opts")[1]},
+        ],
     },
     "Question 49": {
         "text": q_vertaling.get("Q49_text"),
         "type": "bestand",
-        "depends_on": {
-            "question": "Question 45",
-            "expected_value": q_vertaling.get("Q45_opts")[1]
-        },
+        "depends_on": [
+            {"question": "Question 39", "expected_value": q_vertaling.get("yes", "Ja")},
+            {"question": "Question 45", "expected_value": q_vertaling.get("Q45_opts")[1]},
+        ],
     },
     "Question 50": {
         "text": q_vertaling.get("Q50_text"),
@@ -965,10 +977,10 @@ QUESTIONS = {
     "Question 52": {
         "text": q_vertaling.get("Q52_text"),
         "type": "text",
-        "depends_on": {
-            "question": "Question 51",
-            "expected_value": q_vertaling.get("Q51_opts")[2]
-        },
+        "depends_on": [
+            {"question": "Question 50", "expected_value": q_vertaling.get("yes", "Ja")},
+            {"question": "Question 51", "expected_value": q_vertaling.get("Q51_opts")[2]},
+        ],
     },
     "Question 53": {
         "text": q_vertaling.get("Q53_text"),
@@ -990,10 +1002,10 @@ QUESTIONS = {
     "Question 55": {
         "text": q_vertaling.get("Q55_text"),
         "type": "bestand",
-        "depends_on": {
-            "question": "Question 54",
-            "expected_value": q_vertaling.get("yes", "Ja")
-        },
+        "depends_on": [
+            {"question": "Question 50", "expected_value": q_vertaling.get("yes", "Ja")},
+            {"question": "Question 54", "expected_value": q_vertaling.get("yes", "Ja")},
+        ],
     },
     "Question 56": {
         "text": q_vertaling.get("Q56_text"),
@@ -1007,50 +1019,50 @@ QUESTIONS = {
     "Question 57": {
         "text": q_vertaling.get("Q57_text"),
         "type": "datum",
-        "depends_on": {
-            "question": "Question 56",
-            "expected_value": q_vertaling.get("Q56_opts")[0]
-        },
+        "depends_on": [
+            {"question": "Question 50", "expected_value": q_vertaling.get("yes", "Ja")},
+            {"question": "Question 56", "expected_value": q_vertaling.get("Q56_opts")[0]},
+        ],
     },
     "Question 58": {
         "text": q_vertaling.get("Q58_text"),
         "type": "bestand",
-        "depends_on": {
-            "question": "Question 56",
-            "expected_value": q_vertaling.get("Q56_opts")[0]
-        },
+        "depends_on": [
+            {"question": "Question 50", "expected_value": q_vertaling.get("yes", "Ja")},
+            {"question": "Question 56", "expected_value": q_vertaling.get("Q56_opts")[0]},
+        ],
     },
     "Question 59": {
         "text": q_vertaling.get("Q59_text"),
         "type": "bestand",
-        "depends_on": {
-            "question": "Question 56",
-            "expected_value": q_vertaling.get("Q56_opts")[0]
-        },
+        "depends_on": [
+            {"question": "Question 50", "expected_value": q_vertaling.get("yes", "Ja")},
+            {"question": "Question 56", "expected_value": q_vertaling.get("Q56_opts")[0]},
+        ],
     },
     "Question 60": {
         "text": q_vertaling.get("Q60_text"),
         "type": "datum",
-        "depends_on": {
-            "question": "Question 56",
-            "expected_value": q_vertaling.get("Q56_opts")[1]
-        },
+        "depends_on": [
+            {"question": "Question 50", "expected_value": q_vertaling.get("yes", "Ja")},
+            {"question": "Question 56", "expected_value": q_vertaling.get("Q56_opts")[1]},
+        ],
     },
     "Question 61": {
         "text": q_vertaling.get("Q61_text"),
         "type": "bestand",
-        "depends_on": {
-            "question": "Question 56",
-            "expected_value": q_vertaling.get("Q56_opts")[1]
-        },
+        "depends_on": [
+            {"question": "Question 50", "expected_value": q_vertaling.get("yes", "Ja")},
+            {"question": "Question 56", "expected_value": q_vertaling.get("Q56_opts")[1]},
+        ],
     },
     "Question 62": {
         "text": q_vertaling.get("Q62_text"),
         "type": "bestand",
-        "depends_on": {
-            "question": "Question 56",
-            "expected_value": q_vertaling.get("Q56_opts")[1]
-        },
+        "depends_on": [
+            {"question": "Question 50", "expected_value": q_vertaling.get("yes", "Ja")},
+            {"question": "Question 56", "expected_value": q_vertaling.get("Q56_opts")[1]},
+        ],
     },
     "Question 63": {
         "text": q_vertaling.get("Q63_text"),
@@ -1109,10 +1121,10 @@ QUESTIONS = {
     "Question 70": {
         "text": q_vertaling.get("Q70_text"),
         "type": "int",
-        "depends_on": {
-            "question": "Question 69",
-            "expected_value": q_vertaling.get("yes", "Ja")
-        },
+        "depends_on": [
+            {"question": "Question 65", "expected_value": q_vertaling.get("yes", "Ja")},
+            {"question": "Question 69", "expected_value": q_vertaling.get("yes", "Ja")},
+        ],
     },
     "Question 71": {
         "text": q_vertaling.get("Q71_text"),
@@ -1480,7 +1492,22 @@ STAPPEN = {
 }
 
 
-# --- 1. DE STARTPAGINA 
+# --- MELDING: eerdere antwoorden geladen ---
+if st.session_state.toon_melding:
+    st.title(Start_vertaling["melding_titel"])
+    st.write("")
+    jaar_geladen = st.session_state.geladen_van_jaar or JAAR - 1
+    st.info(Start_vertaling["melding_tekst"](jaar_geladen))
+    st.write("")
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        if st.button(Start_vertaling["melding_knop"], use_container_width=True, type="primary"):
+            st.session_state.toon_melding = False
+            st.session_state.current_step = "Stap 1"
+            st.rerun()
+    st.stop()
+
+# --- 1. DE STARTPAGINA
 if current_step == "START":
     st.title(Start_vertaling["start_title"])
     st.write(Start_vertaling["start_subtitle"])
@@ -1494,14 +1521,25 @@ if current_step == "START":
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         if st.button(Start_vertaling["start_button"], use_container_width=True, type="primary"):
-            # Laad antwoorden van vorig jaar als die er zijn (eenmalig)
             if not st.session_state.previous_loaded:
                 vorige_antwoorden = load_previous_answers(st.session_state.user.id, JAAR)
                 if vorige_antwoorden:
                     st.session_state.antwoorden_log = vorige_antwoorden
+                    # Bepaal van welk jaar de antwoorden zijn geladen
+                    for zoekjaar in [JAAR, JAAR - 1]:
+                        check = load_previous_answers(st.session_state.user.id, zoekjaar + 1)
+                        if check == vorige_antwoorden:
+                            st.session_state.geladen_van_jaar = zoekjaar
+                            break
+                    if st.session_state.geladen_van_jaar is None:
+                        st.session_state.geladen_van_jaar = JAAR - 1
+                    st.session_state.toon_melding = True
+                    st.session_state.previous_loaded = True
+                    st.rerun()
                 st.session_state.previous_loaded = True
-            st.session_state.current_step = "Stap 1"
-            st.rerun()
+            if not st.session_state.toon_melding:
+                st.session_state.current_step = "Stap 1"
+                st.rerun()
 
 # --- 2. DE WERKELIJKE VRAGENLIJST (Hier tonen we de formuliertitels) ---
 elif current_step and current_step in STAPPEN:
@@ -1532,7 +1570,8 @@ elif current_step and current_step in STAPPEN:
             skip = False
             for conditie in condities:
                 target_vraag     = conditie["question"]
-                actueel_antwoord = st.session_state.antwoorden_log.get(target_vraag) or pagina_antwoorden.get(target_vraag)
+                # pagina_antwoorden heeft prioriteit over antwoorden_log (huidige invoer boven oude antwoorden)
+                actueel_antwoord = pagina_antwoorden.get(target_vraag) if target_vraag in pagina_antwoorden else st.session_state.antwoorden_log.get(target_vraag)
 
                 if "expected_value" in conditie:
                     if str(actueel_antwoord) != str(conditie["expected_value"]):
@@ -1765,7 +1804,10 @@ elif current_step and current_step in STAPPEN:
                 st.rerun()
 
     with col2:
-        if st.button(t["next_btn"]):
+        # Laatste stap: de stap waarvan de key de laatste is in STAPPEN
+        is_laatste_stap = current_step == list(STAPPEN.keys())[-1]
+        knop_label = t["submit_btn"] if is_laatste_stap else t["next_btn"]
+        if st.button(knop_label, type="primary" if is_laatste_stap else "secondary"):
             # 1. Check specifiek of er een ongevinkte privacy-checkbox op de pagina staat
             heeft_ongevinkte_privacy = False
             for q_id, antw in pagina_antwoorden.items():
@@ -1778,7 +1820,14 @@ elif current_step and current_step in STAPPEN:
                 st.error(t["error_privacy"])
             
             elif alle_vragen_geldig:
+                # Sla de ingevulde antwoorden op
                 st.session_state.antwoorden_log.update(pagina_antwoorden)
+
+                # Verwijder antwoorden van vragen die op deze stap NIET getoond werden
+                for q_id in stap_info.get("vragen", []):
+                    if q_id not in pagina_antwoorden and q_id in st.session_state.antwoorden_log:
+                        del st.session_state.antwoorden_log[q_id]
+
                 st.session_state.history.append(current_step)
                 
                 next_step = None
@@ -1831,6 +1880,17 @@ elif current_step and current_step in STAPPEN:
                     next_step = stap_info.get("next_step")
 
                 # AFHANDELING VAN DE VOLGENDE STAP IN DE STATE
+                # Wis antwoorden van overgeslagen stappen
+                stap_namen = list(STAPPEN.keys())
+                if current_step in stap_namen and next_step in stap_namen:
+                    current_idx = stap_namen.index(current_step)
+                    next_idx    = stap_namen.index(next_step)
+                    for i in range(current_idx + 1, next_idx):
+                        overgeslagen = stap_namen[i]
+                        for q_id in STAPPEN[overgeslagen].get("vragen", []):
+                            if q_id in st.session_state.antwoorden_log:
+                                del st.session_state.antwoorden_log[q_id]
+
                 if next_step is None or next_step == "END" or next_step not in STAPPEN:
                     st.session_state.current_step = "END"
                     st.rerun()
@@ -1864,10 +1924,7 @@ else:
             else:
                 st.error(f"{t['save_failed']} {msg}")
 
-    # Toon het JSON logboek (optioneel)
-    st.json(st.session_state.antwoorden_log)
-    
-    # Opnieuw beginnen reset ook de verstuur-status
-    if st.button(t["restart_btn"]):
+    if st.button(t["restart_btn"], type="primary"):
         st.session_state.clear()
+        supabase.auth.sign_out()
         st.rerun()
