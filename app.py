@@ -45,7 +45,7 @@ if st.session_state.get("admin_modus", False):
     with col2:
         jaar_filter = st.number_input("Jaar", min_value=2020, max_value=2035, value=datetime.now().year - 1, step=1, key="admin_jaar_filter")
     with col3:
-        st.write(""); st.write("")
+        st.markdown('<p style="font-size:14px;margin-bottom:5px;color:#707070">Zoeken</p>', unsafe_allow_html=True)
         zoek_geklikt = st.button("🔍 Zoek", type="primary", use_container_width=True)
 
     if "admin_results" not in st.session_state:

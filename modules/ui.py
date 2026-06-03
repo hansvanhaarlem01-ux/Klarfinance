@@ -29,7 +29,7 @@ def setup_page(title: str = "Klår Finance - Vragenlijst"):
         page_title=title,
         page_icon=favicon,
         layout="centered",
-        initial_sidebar_state="collapsed",
+        initial_sidebar_state="expanded",
     )
 
     _inject_scroll_reset()
@@ -82,15 +82,20 @@ def _inject_font():
             font-style: normal;
             font-display: block;
         }}
-        html, body, [class*="st-"], .stMarkdown,
-        p, h1, h2, h3, h4, h5, h6, label, span, button, input, div {{
+
+        /* Pas het lettertype toe op tekst-content, niet op systeem-UI */
+        p, h1, h2, h3, h4, h5, h6, label, input,
+        .stMarkdown, [data-testid="stMarkdownContainer"],
+        [data-testid="stText"], [data-testid="stHeading"],
+        [data-testid="stCaptionContainer"],
+        .stTextInput input, .stSelectbox, .stRadio label,
+        .stButton button span:not([data-testid="stIconMaterial"]) {{
             font-family: 'KlarCustomFont', -apple-system, BlinkMacSystemFont, sans-serif !important;
         }}
         </style>
         """,
         unsafe_allow_html=True,
     )
-
 
 def _inject_base_css():
     st.markdown(
@@ -137,24 +142,44 @@ def _inject_base_css():
         [data-testid="stSidebar"] * {
             color: #ffffff !important;
         }
-        [data-testid="stSidebar"] button {
+        /* Alleen de inhoud-knoppen in de sidebar (uitloggen, admin) transparant */
+        [data-testid="stSidebar"] .stButton button {
             border-color: #ffffff !important;
             background-color: transparent !important;
         }
+        /* Collapse knop IN de sidebar: witte hover zodat hij zichtbaar wordt */
+        [data-testid="stSidebarCollapseButton"] button:hover {
+            background: rgba(255,255,255,0.25) !important;
+        }
+        /* Expand knop BUITEN de sidebar: altijd rood zichtbaar */
+        [data-testid="collapsedControl"] button {
+            background: #e75954 !important;
+            border: none !important;
+            border-radius: 0 6px 6px 0 !important;
+            min-width: 24px !important;
+            min-height: 40px !important;
+        }
+        [data-testid="collapsedControl"] button:hover {
+            background: #c94440 !important;
+        }
 
-        /* ── Sidebar collapse-knop: verberg tooltip-tekst ── */
-        button[kind="headerNoPadding"] > div,
-        [data-testid="stSidebarCollapsedControl"] span {
+        /* ── Verberg Streamlit pagina-navigatie in sidebar ── */
+        [data-testid="stSidebarNavItems"],
+        [data-testid="stSidebarNav"] {
             display: none !important;
         }
-        button[title],
-        button[aria-label] {
-            pointer-events: auto !important;
+        /* ── Sidebar toggle: zorg dat Material Icons als icoon renderen ── */
+        [data-testid="stIconMaterial"] {
+            font-family: 'Material Icons', 'Material Symbols Rounded' !important;
         }
-        /* Verberg de tekst in de collapse-toggle knop */
-        [data-testid="stSidebarCollapseButton"] span,
-        [data-testid="stSidebarCollapseButton"] p {
-            display: none !important;
+        /* ── Number input border ── */
+        [data-testid="stNumberInput"] input {
+            border: 1px solid #cccccc !important;
+            border-radius: 8px !important;
+        }
+        [data-testid="stNumberInput"] > div {
+            border: 1px solid #cccccc !important;
+            border-radius: 8px !important;
         }
 
         /* ── Toggle switch (privacy) ── */
