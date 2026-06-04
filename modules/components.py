@@ -111,7 +111,8 @@ def dynamic_list_input(
     col2_label: str,
     add_btn_label: str,
     default_value: list = None,
-    col3_label: str = None
+    col3_label: str = None,
+    allow_negative: bool = False
 ) -> list | None:
     """
     Dynamisch lijstcomponent: naam + bedrag per rij, met toevoeg- en verwijderknop.
@@ -161,7 +162,8 @@ def dynamic_list_input(
         with c2:
             bedrag_default = int(rij["bedrag"]) if rij.get("bedrag") is not None else None
             bedrag = st.number_input(
-                col2_label, value=bedrag_default, min_value=0, step=1,
+                col2_label, value=bedrag_default,
+                min_value=None if allow_negative else 0, step=1,
                 key=f"{key}_bedrag_{i}", label_visibility="collapsed"
             )
 

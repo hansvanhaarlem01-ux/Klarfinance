@@ -204,8 +204,11 @@ def _inject_base_css():
         }
 
         /* ── File uploader knop ── */
-        div[data-testid="stFileUploader"] button * { display: none !important; }
-        div[data-testid="stFileUploader"] button {
+        div[data-testid="stFileUploader"] [data-testid="stBaseButton-secondary"]:first-of-type * { 
+    display: none !important; 
+        }
+
+        div[data-testid="stFileUploader"] [data-testid="stBaseButton-secondary"]:first-of-type {
             background-color: #ffffff !important;
             border: 1px solid #707070 !important;
             border-radius: 8px !important;
@@ -216,7 +219,8 @@ def _inject_base_css():
             align-items: center !important;
             justify-content: center !important;
         }
-        div[data-testid="stFileUploader"] button::after {
+
+        div[data-testid="stFileUploader"] [data-testid="stBaseButton-secondary"]:first-of-type::after {
             content: var(--uploader-text) !important;
             font-size: 14px !important;
             color: #31333f !important;

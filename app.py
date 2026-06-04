@@ -365,14 +365,18 @@ QUESTIONS_TRANSLATION = {
         "Q63_text": f"Heeft u in {JAAR} uw hypotheek overgesloten?",
         "Q64_text": "Upload de notarisafrekening van de oversluiting.",
         "Q65_text": f"Had u in {JAAR} een aanmerkelijk belang in een BV/NV?",
+        "Q65_toelichting": "Je hebt een aanmerkelijk belang in een bv of nv wanneer je direct of indirect minimaal 5% bezit van het geplaatste aandelenkapitaal.",
         "Q66_text": f"Wat is de naam van deze BV/NV en hoeveel aandelen bezat u?",
         "Q66_col1": "Naam",
         "Q66_col2": "Bedrag/Aantal",
         "Q67_text": f"Heeft u in {JAAR} aandelen in deze BV/NV verkocht of gekocht?",
-        "Q67_opts": ["Nee", "Ja, verkocht", "Ja, gekocht"],
         "Q68_text": "Hoeveel aandelen heeft u gekocht/verkocht?",
+        "Q68_col2": "Gekocht/verkocht",
+        "Q68_toelichting": f"Voer indien u in {JAAR} aandelen gekocht heeft een positief getal in achter de betreffende entiteit en bij verkoop een negatief bedrag. Voer 0 in wanneer er geen mutaties waren.",
         "Q69_text": f"Heeft u in {JAAR} dividend ontvangen van deze BV/NV?",
         "Q70_text": f"Hoeveel was het bruto ontvangen dividend in {JAAR}?",
+        "Q70_col2": "Dividend (€)",
+        "Q70_toelichting": "Voer achter de betreffende entiteit het ontvangen dividend in en voer 0 in wanneer er geen dividend is uitgekeerd.",
         "Q71_text": f"Had u in {JAAR} Nederlandse bankrekeningen en/of Nederlandse beleggingen?",
         "Q72_text": f"Upload de jaaroverzichten {JAAR} van al uw Nederlandse rekeningen.",
         "Q72_toelicht": "Upload hier de jaaroverzichten van al uw Nederlandse bankrekeningen en beleggingsrekeningen. U kunt meerdere bestanden tegelijk selecteren door Ctrl ingedrukt te houden (Windows) of ⌘ Cmd (Mac) terwijl u de bestanden aanklikt.",
@@ -504,14 +508,18 @@ QUESTIONS_TRANSLATION = {
         "Q63_text": f"Did you refinance your mortgage in {JAAR}?",
         "Q64_text": "Upload the notary settlement statement of the refinancing.",
         "Q65_text": f"Did you hold a substantial interest (aanmerkelijk belang) in a BV/NV in {JAAR}?",
+        "Q65_toelichting": "You hold a substantial interest (aanmerkelijk belang) in a BV or NV when you directly or indirectly own at least 5% of the issued share capital.",
         "Q66_text": "What is the name of this BV/NV and how many shares did you hold?",
         "Q66_col1": "Name",
         "Q66_col2": "Amount/Quantity",
         "Q67_text": f"Did you buy or sell shares in this BV/NV in {JAAR}?",
-        "Q67_opts": ["No", "Yes, sold", "Yes, bought"],
         "Q68_text": "How many shares did you buy/sell?",
+        "Q68_col2": "Bought/sold",
+        "Q68_toelichting": f"For shares bought in {JAAR}, enter a positive number next to the relevant entity; for shares sold, enter a negative number. Enter 0 if there were no changes.",
         "Q69_text": f"Did you receive dividends from this BV/NV in {JAAR}?",
         "Q70_text": f"What was the gross dividend received in {JAAR}?",
+        "Q70_col2": "Dividend (€)",
+        "Q70_toelichting": "Enter the dividend received for each relevant entity, and enter 0 if no dividend was paid out.",
         "Q71_text": f"Did you have Dutch bank accounts and/or Dutch investments in {JAAR}?",
         "Q72_text": f"Upload the annual statements for {JAAR} of all your Dutch accounts.",
         "Q72_toelicht": "Upload the annual statements of all your Dutch bank accounts and investment accounts. You can select multiple files at once by holding Ctrl (Windows) or ⌘ Cmd (Mac) while clicking the files.",
@@ -1079,6 +1087,7 @@ QUESTIONS = {
     },
     "Question 65": {
         "text": q_vertaling.get("Q65_text"),
+        "toelichting": q_vertaling.get("Q65_toelichting"),
         "type": "choice",
         "options": JA_NEE_OPTIES,
     },
@@ -1095,7 +1104,7 @@ QUESTIONS = {
     "Question 67": {
         "text": q_vertaling.get("Q67_text"),
         "type": "choice",
-        "options": q_vertaling.get("Q67_opts"),
+        "options": JA_NEE_OPTIES,
         "depends_on": {
             "question": "Question 65",
             "expected_value": q_vertaling.get("yes", "Ja")
@@ -1103,10 +1112,15 @@ QUESTIONS = {
     },
     "Question 68": {
         "text": q_vertaling.get("Q68_text"),
-        "type": "int",
+        "toelichting": q_vertaling.get("Q68_toelichting"),
+        "type": "tabel",
+        "col1": q_vertaling.get("Q66_col1"),
+        "col2": q_vertaling.get("Q68_col2"),
+        "allow_negative": True,
+        "prefill_from": "Question 66",
         "depends_on": [
             {"question": "Question 65", "expected_value": q_vertaling.get("yes", "Ja")},
-            {"question": "Question 67", "expected_value_not": q_vertaling.get("Q67_opts", ["Nee"])[0]},
+            {"question": "Question 67", "expected_value": q_vertaling.get("yes", "Ja")},
         ],
     },
     "Question 69": {
@@ -1120,7 +1134,11 @@ QUESTIONS = {
     },
     "Question 70": {
         "text": q_vertaling.get("Q70_text"),
-        "type": "int",
+        "toelichting": q_vertaling.get("Q70_toelichting"),
+        "type": "tabel",
+        "col1": q_vertaling.get("Q66_col1"),
+        "col2": q_vertaling.get("Q70_col2"),
+        "prefill_from": "Question 66",
         "depends_on": [
             {"question": "Question 65", "expected_value": q_vertaling.get("yes", "Ja")},
             {"question": "Question 69", "expected_value": q_vertaling.get("yes", "Ja")},
@@ -1756,12 +1774,20 @@ elif current_step and current_step in STAPPEN:
                 st.error(t["error_bsn"])
 
         elif v_type == "tabel":
+            prefill_from = vraag.get("prefill_from")
+            allow_negative = vraag.get("allow_negative", False)
+            default_val = bestaand_antwoord if isinstance(bestaand_antwoord, list) else None
+            if default_val is None and prefill_from:
+                bron = pagina_antwoorden.get(prefill_from) or st.session_state.antwoorden_log.get(prefill_from)
+                if bron and isinstance(bron, list):
+                    default_val = [{"naam": r.get("naam", ""), "bedrag": None} for r in bron]
             antwoord = dynamic_list_input(
                 key=input_key,
                 col1_label=vraag.get("col1", t["table_col1"]),
                 col2_label=vraag.get("col2", t["table_col2"]),
                 add_btn_label=t["add_row_btn"],
-                default_value=bestaand_antwoord if isinstance(bestaand_antwoord, list) else None
+                default_value=default_val,
+                allow_negative=allow_negative,
             )
 
         elif v_type == "tabel_3col":
