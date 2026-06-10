@@ -1,291 +1,215 @@
 import streamlit as st
 import re
-import requests
 import pandas as pd
+import base64
+import os
+import requests
 from datetime import datetime
+from PIL import Image  # Voeg deze import toe bovenin je script
+from streamlit_searchbox import st_searchbox
 
-# ── Gedeelde modules ──────────────────────────────────────────────
-from modules.ui import setup_page, inject_uploader_label, scroll_to_top
-from modules.auth import show_login_screen, show_logout_button
-from modules.components import phone_input, dynamic_list_input
-from modules.database import (
-    supabase,
-    save_to_supabase,
-    load_previous_answers,
-    upload_document,
-    get_document_url,
-    google_address_autocomplete,
+GOOGLE_MAPS_API_KEY = st.secrets["GOOGLE_MAPS_API_KEY"]
+
+# Alleen Essentials-velden — voorkomt Pro/Enterprise kosten
+_PLACES_ESSENTIALS_FIELDS = "address_components"
+
+def google_address_autocomplete(search_term: str):
+    """Geeft lijst van (description, place_id) tuples terug voor st_searchbox."""
+    if not search_term or len(search_term) < 3:
+        return []
+
+    url = (
+        f"https://maps.googleapis.com/maps/api/place/autocomplete/json"
+        f"?input={search_term}&types=address&key={GOOGLE_MAPS_API_KEY}"
+    )
+    try:
+        response = requests.get(url, timeout=3)
+        if response.status_code == 200:
+            predictions = response.json().get("predictions", [])
+            return [(p["description"], p["place_id"]) for p in predictions]
+    except Exception:
+        return []
+    return []
+
+
+def get_adres_details(place_id: str) -> dict:
+    """
+    Haalt adrescomponenten op via Places Details API.
+    Gebruikt uitsluitend 'address_components' (Essentials tier).
+    Geeft nooit Pro/Enterprise velden op — kosten blijven laag.
+    """
+    if not place_id or not isinstance(place_id, str) or len(place_id) < 5:
+        return {}
+
+    url = (
+        f"https://maps.googleapis.com/maps/api/place/details/json"
+        f"?place_id={place_id}"
+        f"&fields={_PLACES_ESSENTIALS_FIELDS}"
+        f"&key={GOOGLE_MAPS_API_KEY}"
+    )
+    try:
+        response = requests.get(url, timeout=3)
+        if response.status_code != 200:
+            return {}
+        components = response.json().get("result", {}).get("address_components", [])
+    except Exception:
+        return {}
+
+    def get_component(type_name):
+        for c in components:
+            if type_name in c.get("types", []):
+                return c.get("long_name", "")
+        return ""
+
+    return {
+        "straat":      get_component("route"),
+        "huisnummer":  get_component("street_number"),
+        "toevoeging":  get_component("subpremise"),
+        "postcode":    get_component("postal_code"),
+        "stad":        get_component("locality"),
+        "gemeente":    get_component("administrative_area_level_2"),
+        "provincie":   get_component("administrative_area_level_1"),
+        "land":        get_component("country"),
+    }
+
+
+# Laad eerst de afbeelding in een variabele
+try:
+    favicon = Image.open("browsertab_logo.png")
+except FileNotFoundError:
+    # Mocht het bestand er niet zijn, pakt hij een tijdelijke emoji zodat de app niet crasht
+    favicon = "📊" 
+
+# Gebruik de variabele in de configuratie
+st.set_page_config(
+    page_title="Klår Finance - Vragenlijst", 
+    page_icon=favicon, # Hier geven we nu het echte object mee
+    layout="centered"
 )
 
-try:
-    from streamlit_searchbox import st_searchbox
-except ImportError:
-    st_searchbox = None
+st.markdown(
+    """
+    <script>
+    // Dit zoekt naar de hoofd-scrollcontainer van Streamlit
+    var mainContainer = window.parent.document.querySelector('.main');
+    
+    // Elke keer als Streamlit de pagina ververst, dwingen we de scroll direct naar (0,0)
+    if (mainContainer) {
+        mainContainer.scrollTo({top: 0, behavior: 'auto'});
+    }
+    </script>
+    """,
+    unsafe_allow_html=True
+)
+# Specifieke lettertype
 
-# ── Pagina-setup (moet als eerste) ───────────────────────────────
-setup_page("Klår Finance - Belastingaangifte Vragenlijst")
+FONT_FILE = "Jaapokki-Regular.otf"
 
-# ── Authenticatie ─────────────────────────────────────────────────
-show_login_screen()   # stopt de app als niet ingelogd
-show_logout_button()  # toont uitlogknop (+ admin-knop) in sidebar
+if os.path.exists(FONT_FILE):
+    with open(FONT_FILE, "rb") as f:        
+        font_base64 = base64.b64encode(f.read()).decode('utf-8').strip().replace('\n', '').replace('\r', '')
+    font_css = f"""
+    <style>
+    @font-face {{
+        font-family: 'KlarCustomFont';
+        src: url('data:font/ttf;charset=utf-8;base64,{font_base64}') format('truetype');
+        font-weight: normal;
+        font-style: normal;
+        font-display: block;
+    }}
 
-# ── Admin modus ───────────────────────────────────────────────────
-if st.session_state.get("admin_modus", False):
-    from modules.admin_db import (
-        search_records, get_signed_url, antwoord_naar_tekst,
-        export_records_excel, VRAAG_LABELS, STAPPEN_ADMIN,
-        sla_nextens_id_op
-    )
-    from modules.nextens import (
-        zoek_persoon_op_bsn, maak_persoon_aan, update_persoon,
-        bouw_persoon_payload, vergelijk_payload
-    )
-    import pandas as pd
+    /* Dit overschrijft elk denkbaar tekst-element in de browser */
+    html, body, [class*="st-"], .stMarkdown, p, h1, h2, h3, h4, h5, h6, label, span, button, input, div {{
+        font-family: 'KlarCustomFont', -apple-system, BlinkMacSystemFont, sans-serif !important;
+    }}
+    </style>
+    """
+    st.markdown(font_css, unsafe_allow_html=True)
+else:
+    st.error(f"Bestand '{FONT_FILE}' niet gevonden!")
+# Voeg aangepaste CSS toe om het info-blok te stylen
+st.markdown(
+    """
+    <style>
+    /* ================================================================= */
+    /* 1. INFOBLOKKEN (st.info) STYLING                                  */
+    /* ================================================================= */
+    
+    /* Pak specifiek de tekst en lijsten binnen de infoblokken */
+    div[data-testid="stAlert"] div[data-testid="stMarkdownContainer"] p, 
+    div[data-testid="stAlert"] div[data-testid="stMarkdownContainer"] li,
+    div[data-testid="stAlert"] div[data-testid="stMarkdownContainer"] span {
+        color: #707070 !important; /* Aangepast naar jouw gewenste kleur */
+        font-weight: normal !important;
+    }
 
-    st.title("Admin Panel")
-    st.divider()
+    /* Zorg dat dikgedrukte tekst (zoals de koppen) goed zichtbaar blijft */
+    div[data-testid="stAlert"] strong, 
+    div[data-testid="stAlert"] h1, 
+    div[data-testid="stAlert"] h2, 
+    div[data-testid="stAlert"] h3 {
+        color: #707070 !important;
+        font-weight: bold !important;
+    }
 
-    col1, col2, col3 = st.columns([3, 1, 1])
-    with col1:
-        email_query = st.text_input("Zoek op e-mailadres", placeholder="Geef (deel van) een e-mailadres op", key="admin_email_query")
-    with col2:
-        jaar_filter = st.number_input("Jaar", min_value=2020, max_value=2035, value=datetime.now().year - 1, step=1, key="admin_jaar_filter")
-    with col3:
-        st.markdown('<p style="font-size:14px;margin-bottom:5px;color:#707070">Zoeken</p>', unsafe_allow_html=True)
-        zoek_geklikt = st.button("🔍 Zoek", type="primary", width='stretch')
+    /* De hoofdcontainer van het infoblok: strakke rand en subtiele schaduw */
+    div[data-testid="stAlert"] {
+        background-color: #ffffff !important;
+        border: 1px solid #707070 !important; 
+        border-radius: 12px !important;
+        box-shadow: 0 1px 3px rgba(28, 50, 92, 0.08) !important;
+        overflow: hidden !important; 
+    }
 
-    if "admin_results" not in st.session_state:
-        st.session_state.admin_results  = []
-    if "admin_selected" not in st.session_state:
-        st.session_state.admin_selected = None
+    /* De binnenste container van het infoblok */
+    div[data-testid="stAlert"] > div {
+        background-color: #ffffff !important;
+        border: none !important; 
+        border-radius: 11px !important;
+    }
 
-    if zoek_geklikt:
-        with st.spinner("Zoeken..."):
-            st.session_state.admin_results  = search_records(email_query, jaar_filter)
-            st.session_state.admin_selected = None
+    /* Verwijder standaard Streamlit-lagen van het infoblok */
+    div[data-testid="stAlert"]::before, div[data-testid="stAlert"]::after {
+        display: none !important;
+    }
+    
+    /* ================================================================= */
+    /* 2. FILE UPLOADER KNOP RESET                                       */
+    /* ================================================================= */
+    
+    /* Sloop de originele tekstinhoud van de uploader-knop volledig eruit */
+    div[data-testid="stFileUploader"] button * {
+        display: none !important;
+    }
 
-    records = st.session_state.admin_results
+    /* Geef de knop de nieuwe, schone, gecentreerde styling */
+    div[data-testid="stFileUploader"] button {
+        background-color: #ffffff !important;
+        border: 1px solid #707070 !important;
+        border-radius: 8px !important;
+        padding: 6px 16px !important;
+        height: 38px !important;
+        min-width: 140px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }
 
-    if records:
-        st.write(f"**{len(records)} record(s) gevonden**")
-
-        col_excel, _ = st.columns([1, 5])
-        with col_excel:
-            st.download_button("⬇️ Download Excel", data=export_records_excel(records),
-                file_name=f"klar_export_{jaar_filter}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                width='stretch')
-
-        df_overzicht = pd.DataFrame([{
-            "#": i + 1, "Email": r.get("email", "—"), "Jaar": r.get("jaar", ""),
-            "Type": r.get("vragenlijst_type", ""),
-            "Ingevuld op": (r.get("created_at") or "")[:10], "Taal": r.get("taal", ""),
-        } for i, r in enumerate(records)])
-
-        event = st.dataframe(df_overzicht, width='stretch', hide_index=True,
-            selection_mode="single-row", on_select="rerun", key="admin_tabel",
-            column_config={"Ingevuld op": st.column_config.TextColumn("Datum", width="small")})
-
-        if event.selection.rows:
-            st.session_state.admin_selected = event.selection.rows[0]
-
-    elif zoek_geklikt:
-        st.info("Geen records gevonden.")
-
-    geselecteerd = st.session_state.admin_selected
-    if geselecteerd is not None and geselecteerd < len(records):
-        record     = records[geselecteerd]
-        antwoorden = record.get("antwoorden", {})
-
-        st.divider()
-        st.subheader(f"📋 {record.get('email', '—')} — {record.get('jaar', '')}")
-        st.caption(f"Taal: {record.get('taal', '')}  ·  Ingevuld: {(record.get('created_at') or '')[:10]}")
-        st.write("")
-
-        for stap_id, stap_info in STAPPEN_ADMIN.items():
-            beantwoord = [q for q in stap_info["vragen"] if q in antwoorden]
-            if not beantwoord:
-                continue
-            st.markdown(f"### {stap_info['titel']}")
-            st.markdown("---")
-            for q_id in beantwoord:
-                label  = VRAAG_LABELS.get(q_id, q_id)
-                waarde = antwoorden[q_id]
-                col_l, col_r = st.columns([2, 3])
-                with col_l:
-                    st.markdown(f"**{label}**")
-                with col_r:
-                    if isinstance(waarde, bool):
-                        st.markdown("✅ Ja" if waarde else "❌ Nee")
-                    elif isinstance(waarde, list):
-                        for item in waarde:
-                            if isinstance(item, str) and item.count("/") >= 3:
-                                url = get_signed_url(item)
-                                naam = item.split("/")[-1]
-                                st.markdown(f"📄 [{naam}]({url})" if url else f"📄 {naam}")
-                            elif isinstance(item, dict):
-                                st.markdown(" | ".join(f"**{k}:** {v}" for k, v in item.items()))
-                            else:
-                                st.markdown(f"- {item}")
-                    elif isinstance(waarde, str) and waarde.count("/") >= 3:
-                        url = get_signed_url(waarde)
-                        naam = waarde.split("/")[-1]
-                        st.markdown(f"📄 [{naam}]({url})" if url else f"📄 {naam}")
-                    else:
-                        st.markdown(str(waarde))
-            st.write("")
-
-    # ── Nextens synchronisatie ────────────────────────────────────
-    if geselecteerd is not None and geselecteerd < len(records):
-        record     = records[geselecteerd]
-        antwoorden = record.get("antwoorden", {})
-        record_id  = record.get("id")
-
-        st.divider()
-        st.subheader("🔗 Nextens synchronisatie")
-
-        # Omgeving toggle
-        omgeving = st.radio(
-            "Omgeving:",
-            ["Acceptatie", "Productie"],
-            horizontal=True,
-            key="nextens_omgeving"
-        )
-
-        nextens_id = record.get("nextens_id")
-        bsn        = antwoorden.get("Question 7", "")
-
-        if not bsn:
-            st.warning("⚠️ Geen BSN gevonden in dit record — synchronisatie niet mogelijk.")
-        else:
-            klar_payload = bouw_persoon_payload(antwoorden)
-
-            # Al gekoppeld
-            if nextens_id:
-                st.success(f"✅ Gekoppeld aan Nextens ID: `{nextens_id}`")
-            else:
-                st.info("Dit record is nog niet gekoppeld aan Nextens.")
-
-            col_zoek, col_aan = st.columns(2)
-
-            with col_zoek:
-                if st.button("🔍 Zoek in Nextens op BSN", key="nextens_zoek"):
-                    with st.spinner("Zoeken..."):
-                        resultaat = zoek_persoon_op_bsn(bsn, omgeving)
-                    st.session_state["_nextens_zoekresultaat"] = resultaat
-                    st.session_state["_nextens_api_log"] = {"actie": "Zoek op BSN", "response": resultaat}
-
-            with col_aan:
-                if not nextens_id:
-                    if st.button("➕ Aanmaken in Nextens", key="nextens_aanmaken"):
-                        with st.spinner("Aanmaken..."):
-                            resultaat = maak_persoon_aan(klar_payload, omgeving)
-                        st.session_state["_nextens_api_log"] = {"actie": "Aanmaken persoon", "payload": klar_payload, "response": resultaat}
-                        if resultaat["ok"]:
-                            nieuw_id = resultaat["nextens_id"]
-                            ok, fout = sla_nextens_id_op(record_id, nieuw_id)
-                            if ok:
-                                st.success(f"✅ Aangemaakt! Nextens ID: `{nieuw_id}`")
-                                st.session_state["_nextens_zoekresultaat"] = None
-                                st.rerun()
-                            else:
-                                st.error(f"Aangemaakt in Nextens maar opslaan in Supabase mislukt: {fout}")
-                        else:
-                            st.error(f"❌ Aanmaken mislukt: {resultaat['fout']}")
-
-            # Zoekresultaat tonen
-            zoekresultaat = st.session_state.get("_nextens_zoekresultaat")
-            if zoekresultaat:
-                if zoekresultaat["ok"]:
-                    gevonden_data = zoekresultaat["data"]
-                    gevonden_id   = gevonden_data.get("Id")
-                    st.success(f"✅ Gevonden in Nextens — ID: `{gevonden_id}`")
-
-                    # Koppelen als nog niet gekoppeld
-                    if not nextens_id:
-                        if st.button("🔗 Koppel dit Nextens ID aan record", key="nextens_koppel"):
-                            ok, fout = sla_nextens_id_op(record_id, gevonden_id)
-                            if ok:
-                                st.success("Gekoppeld!")
-                                st.session_state["_nextens_zoekresultaat"] = None
-                                st.rerun()
-                            else:
-                                st.error(f"Koppelen mislukt: {fout}")
-
-                    # Vergelijking tonen
-                    verschillen = vergelijk_payload(klar_payload, gevonden_data)
-                    if verschillen:
-                        st.warning(f"⚠️ {len(verschillen)} verschil(len) gevonden tussen Klar en Nextens:")
-                        st.dataframe(
-                            verschillen,
-                            width='stretch',
-                            hide_index=True
-                        )
-                        huidig_nextens_id = nextens_id or gevonden_id
-                        if st.button("✅ Update Nextens met Klar-gegevens", key="nextens_update"):
-                            with st.spinner("Updaten..."):
-                                update_res = update_persoon(huidig_nextens_id, klar_payload, omgeving)
-                            st.session_state["_nextens_api_log"] = {"actie": "Update persoon", "payload": klar_payload, "response": update_res}
-                            if update_res["ok"]:
-                                st.success("✅ Nextens bijgewerkt!")
-                                st.session_state["_nextens_zoekresultaat"] = None
-                            else:
-                                st.error(f"❌ Update mislukt: {update_res['fout']}")
-                    else:
-                        st.info("✅ Klar en Nextens zijn al gelijk — geen update nodig.")
-                else:
-                    st.error(f"❌ {zoekresultaat['fout']}")
-
-            # API debug log
-            api_log = st.session_state.get("_nextens_api_log")
-            if api_log:
-                with st.expander("🔎 API response (debug)", expanded=False):
-                    st.write(f"**Actie:** {api_log['actie']}")
-                    if "payload" in api_log:
-                        st.write("**Verstuurde payload:**")
-                        st.json(api_log["payload"])
-                    st.write("**Response:**")
-                    st.json(api_log["response"])
-
-    # ── Google Places API test ─────────────────────────────────────
-    st.divider()
-    st.subheader("🔍 Google Places API test")
-    api_key = st.secrets.get("GOOGLE_MAPS_API_KEY", "NIET GEVONDEN")
-    st.write("API key (eerste 10 tekens):", api_key[:10] if api_key != "NIET GEVONDEN" else api_key)
-    test_input = st.text_input("Testadres:", key="debug_adres_input")
-
-    if st.button("Test Autocomplete API", key="debug_api_btn"):
-        import requests
-        url = f"https://maps.googleapis.com/maps/api/place/autocomplete/json?input={test_input}&types=address&key={api_key}"
-        try:
-            r = requests.get(url, timeout=5)
-            st.write("Status code:", r.status_code)
-            st.write("Response:", r.json())
-        except Exception as e:
-            st.write("Fout:", str(e))
-
-    if st.button("Test Places Details API", key="debug_details_btn"):
-        import requests
-        # Eerst een autocomplete doen om een place_id te krijgen
-        url_ac = f"https://maps.googleapis.com/maps/api/place/autocomplete/json?input={test_input}&types=address&key={api_key}"
-        try:
-            r_ac = requests.get(url_ac, timeout=5)
-            predictions = r_ac.json().get("predictions", [])
-            if not predictions:
-                st.warning("Geen resultaten gevonden via Autocomplete — kan Details niet testen.")
-            else:
-                place_id = predictions[0]["place_id"]
-                st.write("place_id:", place_id)
-                url_det = f"https://maps.googleapis.com/maps/api/place/details/json?place_id={place_id}&fields=address_components&key={api_key}"
-                r_det = requests.get(url_det, timeout=5)
-                st.write("Status code:", r_det.status_code)
-                st.write("Response:", r_det.json())
-        except Exception as e:
-            st.write("Fout:", str(e))
-
-    st.stop()  # Voorkom dat de vragenlijst ook geladen wordt
-
-# ── Session state ─────────────────────────────────────────────────
+    /* Injecteer de taalvariabele tekst stabiel in de knop */
+    div[data-testid="stFileUploader"] button::after {
+        content: var(--uploader-text) !important;
+        font-family: sans-serif !important;
+        font-size: 14px !important;
+        color: #31333f !important; /* Dit is de donkere tekstkleur IN de knop zelf */
+        font-weight: normal !important;
+        display: block !important;
+        visibility: visible !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+# --- INITIALISATIE VAN DE STATE ---
 if "taal" not in st.session_state:
     st.session_state.taal = None
 if "current_step" not in st.session_state:
@@ -294,19 +218,38 @@ if "antwoorden_log" not in st.session_state:
     st.session_state.antwoorden_log = {}
 if "history" not in st.session_state:
     st.session_state.history = []
-if "data_verstuurd" not in st.session_state:
-    st.session_state.data_verstuurd = False
-if "previous_loaded" not in st.session_state:
-    st.session_state.previous_loaded = False
-if "toon_melding" not in st.session_state:
-    st.session_state.toon_melding = False
-if "geladen_van_jaar" not in st.session_state:
-    st.session_state.geladen_van_jaar = None
 
 current_step = st.session_state.current_step
 
-# ── Uploader-knoptekst (taalafhankelijk) ──────────────────────────
-inject_uploader_label(st.session_state.taal or "NL")
+# Bepaal de knoptekst op basis van de geselecteerde taal
+if st.session_state.taal == "EN":
+    uploader_knop_tekst = '"Choose file 📂"'  # Let op de dubbele én enkele quotes!
+else:
+    uploader_knop_tekst = '"Bestand kiezen 📂"'
+
+# Injecteer de tekstvariabele live in de CSS
+st.markdown(
+    f"""
+    <style>
+    :root {{
+        --uploader-text: {uploader_knop_tekst};
+    }}
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+# --- INITIALISATIE VAN DE STATE ---
+if "taal" not in st.session_state:
+    st.session_state.taal = None
+if "current_step" not in st.session_state:
+    st.session_state.current_step = "START"
+if "antwoorden_log" not in st.session_state:
+    st.session_state.antwoorden_log = {}
+if "history" not in st.session_state:
+    st.session_state.history = []
+
+current_step = st.session_state.current_step
+
 
 # --- TAALSELECTIE SCHERM ---
 if st.session_state.taal is None:
@@ -338,19 +281,14 @@ STAPPEN_TRANSLATION = {
         "Stap 5": "Thuiswonende kinderen",
         "Stap 6": "Waar u woonde",
         "Stap 7": "Inkomen uit loondienst",
-        "Stap 7a": "Inkomen uit loondienst van uw partner",
         "Stap 8": "Inkomen uit ondernemerschap",
-        "Stap 8a": "Inkomen uit ondernemerschap van uw partner",
         "Stap 9": "Eigen woonverblijf",
         "Stap 10": "Tweede eigen woonverblijf",
         "Stap 11": "Hypotheek",
         "Stap 12": "Aanmerkelijk belang",
         "Stap 13": "Sparen",
         "Stap 14": "Tweede eigen woonverblijf (Belegging)",
-        "Stap 15": "Overig",
-        "Stap 16": "Buitenlands vermogen, beleggingen, schulden en inkomen",
-        "Stap 17": "Aftrekposten",
-        "Stap 18": "Afronding"
+        "Stap 15": "Overig"
     },
     "EN": {
         "START": "Welcome",
@@ -361,19 +299,14 @@ STAPPEN_TRANSLATION = {
         "Stap 5": "Children living at home",
         "Stap 6": "Where you lived",
         "Stap 7": "Income from employment",
-        "Stap 7a": "Partner's income from employment",
         "Stap 8": "Income from entrepreneurship",
-        "Stap 8a": "Partner's income from entrepreneurship",
         "Stap 9": "Primary residence",
         "Stap 10": "Second residence",
         "Stap 11": "Mortgage",
         "Stap 12": "Substantial interest",
         "Stap 13": "Savings",
         "Stap 14": "Second residence (Investment)",
-        "Stap 15": "Other",
-        "Stap 16": "Foreign assets, investments, debts and income",
-        "Stap 17": "Deductions",
-        "Stap 18": "Finalisation"
+        "Stap 15": "Other"
     }
 }
 UI_TRANSLATION = {
@@ -386,11 +319,10 @@ UI_TRANSLATION = {
         "file_placeholder": "Kies een bestand...",
         "prev_btn": "Vorige",
         "next_btn": "Volgende",
-        "submit_btn": "Antwoorden versturen",
         "warning_empty": "Vul een geldig antwoord in voordat u verder gaat.",
         "success": "🎉 Bedankt voor het invullen van de vragenlijst!",
         "success_sub": "Uw antwoorden zijn veilig opgeslagen.",
-        "restart_btn": "Einde, log uit!",
+        "restart_btn": "Opnieuw beginnen",
         "error_date": "Ongeldig formaat. Gebruik DD-MM-YYYY.",
         "error_privacy": "⚠️ U dient akkoord te gaan met de privacyverklaring om verder te kunnen gaan.",
         "error_file": "Eerder geüpload bestand",
@@ -398,15 +330,11 @@ UI_TRANSLATION = {
         "error_email": "Voer een geldig e-mailadres in.",
         "error_phone": "Voer een geldig telefoonnummer in (minimaal 10 cijfers).",
         "error_kvk": "Een KvK-nummer bestaat uit exact 9 cijfers.",
-        "table_col1" : "Naam",
-        "table_col2" : "Bedrag/Aantal",
+        "table_col1" : "Titel",
+        "table_col2" : "Bedrag",
         "string_field": "Uw antwoord:",
         "upload_messsage": "Kies een bestand...",
-        "int_message": "Voer een cijfer in:",
-        "saving_db": "Gegevens opslaan in database...",
-        "save_success": "✅ Gegevens succesvol opgeslagen!",
-        "save_failed": "❌ Opslaan mislukt: ",
-        "add_row_btn": "Voeg een regel toe"
+        "int_message": "Voer een cijfer in:"
     },
     "EN": {
         "title": "Tax Return Questionnaire",
@@ -417,11 +345,10 @@ UI_TRANSLATION = {
         "file_placeholder": "Choose a file...",
         "prev_btn": "Previous",
         "next_btn": "Next",
-        "submit_btn": "Submit answers",
         "warning_empty": "Please provide a valid answer before proceeding.",
         "success": "🎉 Thank you for completing the questionnaire!",
         "success_sub": "Your answers have been securely saved.",
-        "restart_btn": "Done, log out!",
+        "restart_btn": "Start over",
         "error_date": "Invalid format. Use DD-MM-YYYY.",
         "error_privacy": "⚠️ You must agree to the privacy statement to proceed.",
         "error_file": "File has already been uploaded",
@@ -429,15 +356,11 @@ UI_TRANSLATION = {
         "error_email": "Please enter a valid email address.",
         "error_phone": "Please enter a valid phone number (at least 10 digits).",
         "error_kvk": "A KvK number must consist of exactly 9 digits.",
-        "table_col1" : "Name",
-        "table_col2" : "Amount/Quantity",
+        "table_col1" : "Title",
+        "table_col2" : "Amount",
         "string_field": "Your answer:",
         "upload_messsage": "Select a file...",
-        "int_message": "Enter a number:",
-        "saving_db": "Saving data to database...",
-        "save_success": "✅ Data successfully saved!",
-        "save_failed": "❌ Saving failed: ",
-        "add_row_btn": "Add a row"
+        "int_message": "Enter a number:"
     }
 }
 QUESTIONS_TRANSLATION = {
@@ -446,7 +369,6 @@ QUESTIONS_TRANSLATION = {
         "Q1_toelicht": "Voor privacyverklaring zie: https://klarfinance.nl/privacy-policy/",
         "Q2_text": "Voornaam",
         "Q3_text": "Achternaam",
-        "Q3b_text": "Tussenvoegsels",
         "Q4_text": "Telefoonnummer",
         "Q5_text": "E-mailadres",
         "Q6_text": "Wat is je geboortedatum?",
@@ -456,7 +378,6 @@ QUESTIONS_TRANSLATION = {
         "Q10_text": f"Heeft u in {JAAR} een fiscaal partner?",
         "Q10_toelicht": f"Je bent fiscale partners als je aan één van de volgende voorwaarden voldoet:\n- je bent getrouwd of geregistreerd partner;\n- je woont samen en hebt samen een kind;\n- Twijfel je? Kies 'Ja' als jullie ook in {JAAR - 1} als fiscale partners aangifte deden.",
         "Q11_text": "Wat is de voornaam van uw partner?",
-        "Q11b_text": "Tussenvoegsels partner",
         "Q12_text": "Wat is de achternaam van uw partner?",
         "Q13_text": "Wat is het telefoonnummer van uw partner?",
         "Q14_text": "Wat is het e-mailadres van uw partner?",
@@ -494,23 +415,6 @@ QUESTIONS_TRANSLATION = {
         "Q37_text": f"Upload de winst- en verliesrekening {JAAR}.",
         "Q38_text": f"Heeft u in {JAAR} méér dan 1.225 uur besteed aan uw onderneming?",
         "Q38_opts": ["Ja", "Nee", "Ik weet het niet zeker"],
-        # Stap 7a — loondienst partner
-        "Q28p_text": f"Had uw partner in {JAAR} inkomsten uit loondienst?",
-        "Q29p_text": f"Bij hoeveel verschillende werkgevers had uw partner in {JAAR} een dienstverband?",
-        "Q30p_text": f"Upload de jaaropgave van de werkgever(s) van uw partner voor {JAAR}.",
-        "Q31p_text": f"Was in {JAAR} de 30%-regeling van toepassing op uw partner?",
-        "Q31p_toelicht": "De 30%-regeling is een fiscale regeling voor kennismigranten.",
-        "Q32p_text": "Upload de beschikking 30%-regeling van uw partner.",
-        # Stap 8a — ondernemerschap partner
-        "Q33p_text": f"Was uw partner in {JAAR} zelfstandig ondernemer in een eenmanszaak, vof of maatschap?",
-        "Q33p_toelicht": "Heeft uw partner een BV, beantwoord deze vraag dan met 'Nee'.",
-        "Q34p_text": "Wat is de rechtsvorm van de onderneming van uw partner?",
-        "Q35p_text": "Wat is het KvK-nummer van de onderneming van uw partner?",
-        "Q36p_text": "In welk boekhoudprogramma houdt uw partner de administratie bij?",
-        "Q37p_text": f"Upload de winst- en verliesrekening van uw partner voor {JAAR}.",
-        "Q38p_text": f"Heeft uw partner in {JAAR} méér dan 1.225 uur besteed aan zijn/haar onderneming?",
-        # Partner melding
-        "partner_melding": "⚠️ Let op! Onderstaande vragen betreffen zowel u als uw partner.",
         "Q39_text": f"Had u in {JAAR} een eigen woning (hoofdverblijf)?",
         "Q40_text": "Is deze woning alleen van u?",
         "Q40_opts": ["Ja, ik ben de enige eigenaar", "Nee, de woning is eigendom van mij en mijn fiscaal partner (50%-50%)", "Nee, er is nog een andere eigenaar (niet mijn partner)."],
@@ -544,9 +448,8 @@ QUESTIONS_TRANSLATION = {
         "Q65_text": f"Had u in {JAAR} een aanmerkelijk belang in een BV/NV?",
         "Q65_toelichting": "Je hebt een aanmerkelijk belang in een bv of nv wanneer je direct of indirect minimaal 5% bezit van het geplaatste aandelenkapitaal.",
         "Q66_text": f"Wat is de naam van deze BV/NV en hoeveel aandelen bezat u?",
-        "Q66_col1": "Naam",
-        "Q66_col2": "Bedrag/Aantal",
         "Q67_text": f"Heeft u in {JAAR} aandelen in deze BV/NV verkocht of gekocht?",
+        "Q66_col1": "Naam",
         "Q68_text": "Hoeveel aandelen heeft u gekocht/verkocht?",
         "Q68_col2": "Gekocht/verkocht",
         "Q68_toelichting": f"Voer indien u in {JAAR} aandelen gekocht heeft een positief getal in achter de betreffende entiteit en bij verkoop een negatief bedrag. Voer 0 in wanneer er geen mutaties waren.",
@@ -556,12 +459,8 @@ QUESTIONS_TRANSLATION = {
         "Q70_toelichting": "Voer achter de betreffende entiteit het ontvangen dividend in en voer 0 in wanneer er geen dividend is uitgekeerd.",
         "Q71_text": f"Had u in {JAAR} Nederlandse bankrekeningen en/of Nederlandse beleggingen?",
         "Q72_text": f"Upload de jaaroverzichten {JAAR} van al uw Nederlandse rekeningen.",
-        "Q72_toelicht": "Upload hier de jaaroverzichten van al uw Nederlandse bankrekeningen en beleggingsrekeningen. U kunt meerdere bestanden tegelijk selecteren door Ctrl ingedrukt te houden (Windows) of ⌘ Cmd (Mac) terwijl u de bestanden aanklikt. Of druk op het plus-teken wat verschijnt zodra u het eerste bestand heeft geüpload.",
         "Q73_text": f"Bezat u in {JAAR} crypto en/of vordering(en) zoals een lening aan derden?",
-        "Q73b_text": "Vermeld hieronder de omschrijving en waarde per bezitting.",
-        "Q73b_col1": "Omschrijving",
-        "Q73b_col2": f"Waarde 1-1-{JAAR} (€)",
-        "Q73b_col3": f"Waarde 31-12-{JAAR} (€)",
+        "Q73_toelicht": "Zo ja, beschrijf kort en geef steeds de waarde per 1-1-2025 en 31-12-2025.",
         "Q74_text": f"Had u in {JAAR} overig onroerend goed in Nederland (niet de eigen woning)?",
         "Q75_text": "Wat is het adres van dit onroerend goed?",
         "Q76_text": f"Werd dit overig onroerend goed in {JAAR} verhuurd?",
@@ -572,10 +471,8 @@ QUESTIONS_TRANSLATION = {
         "Q81_text": "Kan dit onroerend goed afzonderlijk worden verkocht?",
         "Q82_text": f"Had u Nederlandse schulden in {JAAR}?",
         "Q83_text": f"Upload jaaropgaven {JAAR} van uw Nederlandse schulden.",
-        "Q83_toelicht": "Upload hier de jaaropgaven van al uw Nederlandse schulden, zoals een studieschuld, persoonlijke lening of krediet. U kunt meerdere bestanden tegelijk selecteren door Ctrl ingedrukt te houden (Windows) of ⌘ Cmd (Mac) terwijl u de bestanden aanklikt. Of druk op het plus-teken wat verschijnt zodra u het eerste bestand heeft geüpload.",
         "Q84_text": f"Had u in {JAAR} buitenlandse bankrekeningen en/of buitenlandse beleggingen?",
         "Q85_text": f"Upload de jaaroverzichten {JAAR} van uw buitenlandse rekeningen.",
-        "Q85_toelicht": "Upload hier de jaaroverzichten van al uw buitenlandse bankrekeningen en beleggingsrekeningen. U kunt meerdere bestanden tegelijk selecteren door Ctrl ingedrukt te houden (Windows) of ⌘ Cmd (Mac) terwijl u de bestanden aanklikt. Of druk op het plus-teken wat verschijnt zodra u het eerste bestand heeft geüpload.",
         "Q86_text": f"Had u in {JAAR} onroerend goed in het buitenland?",
         "Q87_text": "Wat is het adres?",
         "Q88_text": f"Wat was de waarde op 1-1-{JAAR}?",
@@ -588,7 +485,6 @@ QUESTIONS_TRANSLATION = {
         "Q94_text": "Is er belasting ingehouden?",
         "Q94_opts": ["Ja", "Nee", "Weet ik niet zeker"],
         "Q95_text": "Upload bewijs buitenlands inkomen.",
-        "Q95_toelicht": "Upload hier het bewijs van uw buitenlandse inkomsten, zoals een jaaropgave of salarisstrook. U kunt meerdere bestanden tegelijk selecteren door Ctrl ingedrukt te houden (Windows) of ⌘ Cmd (Mac) terwijl u de bestanden aanklikt. Of druk op het plus-teken wat verschijnt zodra u het eerste bestand heeft geüpload.",
         "Q96_text": f"Heeft u meer dan EUR 60 gedoneerd aan goede doelen in {JAAR}?",
         "Q97_text": "Vermeld per goed doel het bedrag.",
         "Q98_text": f"Heeft u in {JAAR} buitengewone zorgkosten betaald?",
@@ -609,7 +505,6 @@ QUESTIONS_TRANSLATION = {
         "Q1_toelicht": "For our privacy policy see: https://klarfinance.nl/privacy-policy/",
         "Q2_text": "First name",
         "Q3_text": "Last name",
-        "Q3b_text": "Middle name / prefix",
         "Q4_text": "Phone number",
         "Q5_text": "Email address",
         "Q6_text": "What is your date of birth?",
@@ -619,7 +514,6 @@ QUESTIONS_TRANSLATION = {
         "Q10_text": f"Did you have a tax partner in {JAAR}?",
         "Q10_toelicht": f"You are tax partners if you meet at least one of the following conditions:\n- you are married or registered partners;\n- you live together and have a child together;\n- In doubt? Choose 'Yes' if you also filed as tax partners in {JAAR - 1}.",
         "Q11_text": "What is your partner's first name?",
-        "Q11b_text": "Partner's middle name / prefix",
         "Q12_text": "What is your partner's last name?",
         "Q13_text": "What is your partner's phone number?",
         "Q14_text": "What is your partner's email address?",
@@ -657,23 +551,6 @@ QUESTIONS_TRANSLATION = {
         "Q37_text": f"Upload the profit and loss statement for {JAAR}.",
         "Q38_text": f"Did you spend more than 1,225 hours on your business in {JAAR}?",
         "Q38_opts": ["Yes", "No", "I am not entirely sure"],
-        # Stap 7a — loondienst partner
-        "Q28p_text": f"Did your partner have income from employment in {JAAR}?",
-        "Q29p_text": f"With how many different employers was your partner employed in {JAAR}?",
-        "Q30p_text": f"Upload the annual tax statement (jaaropgave) from your partner's employer(s) for {JAAR}.",
-        "Q31p_text": f"Was the 30% ruling applicable to your partner in {JAAR}?",
-        "Q31p_toelicht": "The 30% ruling is a tax advantage for highly skilled migrants.",
-        "Q32p_text": "Upload the 30% ruling decision letter of your partner.",
-        # Stap 8a — ondernemerschap partner
-        "Q33p_text": f"Was your partner self-employed in a sole proprietorship, VOF, or partnership in {JAAR}?",
-        "Q33p_toelicht": "If your partner owns a BV, please answer 'No'.",
-        "Q34p_text": "What is the legal form of your partner's business?",
-        "Q35p_text": "What is the Chamber of Commerce (KvK) number of your partner's business?",
-        "Q36p_text": "Which accounting software does your partner use?",
-        "Q37p_text": f"Upload the profit and loss statement of your partner for {JAAR}.",
-        "Q38p_text": f"Did your partner spend more than 1,225 hours on his/her business in {JAAR}?",
-        # Partner melding
-        "partner_melding": "⚠️ Note: The questions below apply to both you and your partner.",
         "Q39_text": f"Did you own a home (primary residence) in {JAAR}?",
         "Q40_text": "Is this property solely owned by you?",
         "Q40_opts": ["Yes, I am the sole owner", "No, the property is jointly owned by me and my tax partner (50%-50%)", "No, there is another owner (not my partner)."],
@@ -707,9 +584,8 @@ QUESTIONS_TRANSLATION = {
         "Q65_text": f"Did you hold a substantial interest (aanmerkelijk belang) in a BV/NV in {JAAR}?",
         "Q65_toelichting": "You hold a substantial interest (aanmerkelijk belang) in a BV or NV when you directly or indirectly own at least 5% of the issued share capital.",
         "Q66_text": "What is the name of this BV/NV and how many shares did you hold?",
-        "Q66_col1": "Name",
-        "Q66_col2": "Amount/Quantity",
         "Q67_text": f"Did you buy or sell shares in this BV/NV in {JAAR}?",
+        "Q66_col1": "Name",
         "Q68_text": "How many shares did you buy/sell?",
         "Q68_col2": "Bought/sold",
         "Q68_toelichting": f"For shares bought in {JAAR}, enter a positive number next to the relevant entity; for shares sold, enter a negative number. Enter 0 if there were no changes.",
@@ -719,12 +595,8 @@ QUESTIONS_TRANSLATION = {
         "Q70_toelichting": "Enter the dividend received for each relevant entity, and enter 0 if no dividend was paid out.",
         "Q71_text": f"Did you have Dutch bank accounts and/or Dutch investments in {JAAR}?",
         "Q72_text": f"Upload the annual statements for {JAAR} of all your Dutch accounts.",
-        "Q72_toelicht": "Upload the annual statements of all your Dutch bank accounts and investment accounts. You can select multiple files at once by holding Ctrl (Windows) or ⌘ Cmd (Mac) while clicking the files. Or press the plus sign that appears once you have uploaded the first file.",
         "Q73_text": f"Did you own crypto and/or receivables (such as a loan to third parties) in {JAAR}?",
-        "Q73b_text": "Please list the description and value of each asset below.",
-        "Q73b_col1": "Description",
-        "Q73b_col2": f"Value 1-1-{JAAR} (€)",
-        "Q73b_col3": f"Value 31-12-{JAAR} (€)",
+        "Q73_toelicht": "If yes, describe briefly and state the value as of 1-1-2025 and 31-12-2025.",
         "Q74_text": f"Did you own other real estate in the Netherlands (not the primary residence) in {JAAR}?",
         "Q75_text": "What is the address of this real estate?",
         "Q76_text": f"Was this other real estate rented out in {JAAR}?",
@@ -735,10 +607,8 @@ QUESTIONS_TRANSLATION = {
         "Q81_text": "Can this real estate be sold separately?",
         "Q82_text": f"Did you have Dutch debts in {JAAR}?",
         "Q83_text": f"Upload annual statements for {JAAR} of your Dutch debts.",
-        "Q83_toelicht": "Upload the annual statements of all your Dutch debts, such as a student loan, personal loan, or credit. You can select multiple files at once by holding Ctrl (Windows) or ⌘ Cmd (Mac) while clicking the files. Or press the plus sign that appears once you have uploaded the first file.",
         "Q84_text": f"Did you have foreign bank accounts and/or foreign investments in {JAAR}?",
         "Q85_text": f"Upload the annual statements for {JAAR} of your foreign accounts.",
-        "Q85_toelicht": "Upload the annual statements of all your foreign bank accounts and investment accounts. You can select multiple files at once by holding Ctrl (Windows) or ⌘ Cmd (Mac) while clicking the files. Or press the plus sign that appears once you have uploaded the first file.",
         "Q86_text": f"Did you own real estate abroad in {JAAR}?",
         "Q87_text": "What is the address?",
         "Q88_text": f"What was the value on 1-1-{JAAR}?",
@@ -751,7 +621,6 @@ QUESTIONS_TRANSLATION = {
         "Q94_text": "Was tax withheld?",
         "Q94_opts": ["Yes", "No", "Not entirely sure"],
         "Q95_text": "Upload proof of foreign income.",
-        "Q95_toelicht": "Upload proof of your foreign income here, such as an annual statement or pay slip. You can select multiple files at once by holding Ctrl (Windows) or ⌘ Cmd (Mac) while clicking the files. Or press the plus sign that appears once you have uploaded the first file.",
         "Q96_text": f"Did you donate more than EUR 60 to charities in {JAAR}?",
         "Q97_text": "Please state the amount per charity.",
         "Q98_text": f"Did you pay extraordinary healthcare expenses in {JAAR}?",
@@ -787,10 +656,7 @@ Het invullen van de vragenlijst duurt ongeveer **10 tot 15 minuten**. U kunt tus
         """,
         "start_button": "🚀 Start nu de vragenlijst",
         "main_title": "Belastingaangifte Vragenlijst",
-        "main_subtitle": "Vul de onderstaande vragen zo nauwkeurig mogelijk in.",
-        "melding_titel": "Eerdere antwoorden geladen",
-        "melding_tekst": lambda jaar: f"We hebben jouw antwoorden van **{jaar}** alvast geladen in de vragenlijst. Veel antwoorden zullen hetzelfde zijn — pas de antwoorden aan wanneer jouw situatie is gewijzigd. **Alle bestanden moeten wel opnieuw geüpload worden.**",
-        "melding_knop": "Begrepen, start de vragenlijst"
+        "main_subtitle": "Vul de onderstaande vragen zo nauwkeurig mogelijk in."
     },
     "EN": {
         "start_title": "Welcome to the Tax Declaration Questionnaire",
@@ -810,10 +676,7 @@ Filling out the questionnaire takes about **10 to 15 minutes**. You can go back 
         """,
         "start_button": "🚀 Start the questionnaire now",
         "main_title": "Tax Declaration Questionnaire",
-        "main_subtitle": "Please answer the questions below as accurately as possible.",
-        "melding_titel": "Previous answers loaded",
-        "melding_tekst": lambda jaar: f"We have pre-filled the questionnaire with your answers from **{jaar}**. Many answers will be the same — please update them where your situation has changed. **All files will need to be uploaded again.**",
-        "melding_knop": "Got it, start the questionnaire"
+        "main_subtitle": "Please answer the questions below as accurately as possible."
     }
 }
 # Dynamische snelkoppeling naar de actieve vragen-taal
@@ -841,10 +704,6 @@ QUESTIONS = {
     "Question 3": {
         "text": q_vertaling.get("Q3_text"),
         "type": "text",
-    },
-    "Question 3b": {
-        "text": q_vertaling.get("Q3b_text"),
-        "type": "tekst_optioneel",
     },
     "Question 4": {
         "text": q_vertaling.get("Q4_text"),
@@ -888,10 +747,6 @@ QUESTIONS = {
     "Question 11": {
         "text": q_vertaling.get("Q11_text"),
         "type": "text",
-    },
-    "Question 11b": {
-        "text": q_vertaling.get("Q11b_text"),
-        "type": "tekst_optioneel",
     },
     "Question 12": {
         "text": q_vertaling.get("Q12_text"),
@@ -1009,8 +864,7 @@ QUESTIONS = {
     },
     "Question 30": {
         "text": q_vertaling.get("Q30_text"),
-        "type": "multi_bestand",
-        "herhaling": {"vraag": "Question 29", "max": 5},
+        "type": "bestand",
         "depends_on": {
             "question": "Question 28",
             "expected_value": q_vertaling.get("yes", "Ja")
@@ -1029,10 +883,10 @@ QUESTIONS = {
     "Question 32": {
         "text": q_vertaling.get("Q32_text"),
         "type": "bestand",
-        "depends_on": [
-            {"question": "Question 28", "expected_value": q_vertaling.get("yes", "Ja")},
-            {"question": "Question 31", "expected_value": q_vertaling.get("yes", "Ja")},
-        ],
+        "depends_on": {
+            "question": "Question 31",
+            "expected_value": q_vertaling.get("yes", "Ja")
+        },
     },
     "Question 33": {
         "text": q_vertaling.get("Q33_text"),
@@ -1082,96 +936,6 @@ QUESTIONS = {
             "expected_value": q_vertaling.get("yes", "Ja")
         },
     },
-    # ── Stap 7a: Loondienst partner ──────────────────────────────────
-    "Question 28p": {
-        "text": q_vertaling.get("Q28p_text"),
-        "type": "choice",
-        "options": JA_NEE_OPTIES,
-    },
-    "Question 29p": {
-        "text": q_vertaling.get("Q29p_text"),
-        "type": "int",
-        "depends_on": {
-            "question": "Question 28p",
-            "expected_value": q_vertaling.get("yes", "Ja")
-        },
-    },
-    "Question 30p": {
-        "text": q_vertaling.get("Q30p_text"),
-        "type": "multi_bestand",
-        "herhaling": {"vraag": "Question 29p", "max": 5},
-        "depends_on": {
-            "question": "Question 28p",
-            "expected_value": q_vertaling.get("yes", "Ja")
-        },
-    },
-    "Question 31p": {
-        "text": q_vertaling.get("Q31p_text"),
-        "toelichting": q_vertaling.get("Q31p_toelicht"),
-        "type": "choice",
-        "options": JA_NEE_OPTIES,
-        "depends_on": {
-            "question": "Question 28p",
-            "expected_value": q_vertaling.get("yes", "Ja")
-        },
-    },
-    "Question 32p": {
-        "text": q_vertaling.get("Q32p_text"),
-        "type": "bestand",
-        "depends_on": [
-            {"question": "Question 28p", "expected_value": q_vertaling.get("yes", "Ja")},
-            {"question": "Question 31p", "expected_value": q_vertaling.get("yes", "Ja")},
-        ],
-    },
-    # ── Stap 8a: Ondernemerschap partner ─────────────────────────────
-    "Question 33p": {
-        "text": q_vertaling.get("Q33p_text"),
-        "toelichting": q_vertaling.get("Q33p_toelicht"),
-        "type": "choice",
-        "options": JA_NEE_OPTIES,
-    },
-    "Question 34p": {
-        "text": q_vertaling.get("Q34p_text"),
-        "type": "choice",
-        "options": q_vertaling.get("Q34_opts"),
-        "depends_on": {
-            "question": "Question 33p",
-            "expected_value": q_vertaling.get("yes", "Ja")
-        },
-    },
-    "Question 35p": {
-        "text": q_vertaling.get("Q35p_text"),
-        "type": "kvk-nummer",
-        "depends_on": {
-            "question": "Question 33p",
-            "expected_value": q_vertaling.get("yes", "Ja")
-        },
-    },
-    "Question 36p": {
-        "text": q_vertaling.get("Q36p_text"),
-        "type": "text",
-        "depends_on": {
-            "question": "Question 33p",
-            "expected_value": q_vertaling.get("yes", "Ja")
-        },
-    },
-    "Question 37p": {
-        "text": q_vertaling.get("Q37p_text"),
-        "type": "bestand",
-        "depends_on": {
-            "question": "Question 33p",
-            "expected_value": q_vertaling.get("yes", "Ja")
-        },
-    },
-    "Question 38p": {
-        "text": q_vertaling.get("Q38p_text"),
-        "type": "choice",
-        "options": q_vertaling.get("Q38_opts"),
-        "depends_on": {
-            "question": "Question 33p",
-            "expected_value": q_vertaling.get("yes", "Ja")
-        },
-    },
     "Question 39": {
         "text": q_vertaling.get("Q39_text"),
         "type": "choice",
@@ -1189,14 +953,14 @@ QUESTIONS = {
     "Question 41": {
         "text": q_vertaling.get("Q41_text"),
         "type": "text",
-        "depends_on": [
-            {"question": "Question 39", "expected_value": q_vertaling.get("yes", "Ja")},
-            {"question": "Question 40", "expected_value": q_vertaling.get("Q40_opts")[2]},
-        ],
+        "depends_on": {
+            "question": "Question 40",
+            "expected_value": q_vertaling.get("Q40_opts")[2] # Matcht op de 3e optie (andere eigenaar)
+        },
     },
     "Question 42": {
         "text": q_vertaling.get("Q42_text"),
-        "type": "adres",
+        "type": "text",
         "depends_on": {
             "question": "Question 39",
             "expected_value": q_vertaling.get("yes", "Ja")
@@ -1214,10 +978,10 @@ QUESTIONS = {
     "Question 44": {
         "text": q_vertaling.get("Q44_text"),
         "type": "bestand",
-        "depends_on": [
-            {"question": "Question 39", "expected_value": q_vertaling.get("yes", "Ja")},
-            {"question": "Question 43", "expected_value": q_vertaling.get("yes", "Ja")},
-        ],
+        "depends_on": {
+            "question": "Question 43",
+            "expected_value": q_vertaling.get("yes", "Ja")
+        },
     },
     "Question 45": {
         "text": q_vertaling.get("Q45_text"),
@@ -1231,34 +995,34 @@ QUESTIONS = {
     "Question 46": {
         "text": q_vertaling.get("Q46_text"),
         "type": "datum",
-        "depends_on": [
-            {"question": "Question 39", "expected_value": q_vertaling.get("yes", "Ja")},
-            {"question": "Question 45", "expected_value": q_vertaling.get("Q45_opts")[0]},
-        ],
+        "depends_on": {
+            "question": "Question 45",
+            "expected_value": q_vertaling.get("Q45_opts")[0] # Gekocht
+        },
     },
     "Question 47": {
         "text": q_vertaling.get("Q47_text"),
         "type": "bestand",
-        "depends_on": [
-            {"question": "Question 39", "expected_value": q_vertaling.get("yes", "Ja")},
-            {"question": "Question 45", "expected_value": q_vertaling.get("Q45_opts")[0]},
-        ],
+        "depends_on": {
+            "question": "Question 45",
+            "expected_value": q_vertaling.get("Q45_opts")[0]
+        },
     },
     "Question 48": {
         "text": q_vertaling.get("Q48_text"),
         "type": "datum",
-        "depends_on": [
-            {"question": "Question 39", "expected_value": q_vertaling.get("yes", "Ja")},
-            {"question": "Question 45", "expected_value": q_vertaling.get("Q45_opts")[1]},
-        ],
+        "depends_on": {
+            "question": "Question 45",
+            "expected_value": q_vertaling.get("Q45_opts")[1] # Verkocht
+        },
     },
     "Question 49": {
         "text": q_vertaling.get("Q49_text"),
         "type": "bestand",
-        "depends_on": [
-            {"question": "Question 39", "expected_value": q_vertaling.get("yes", "Ja")},
-            {"question": "Question 45", "expected_value": q_vertaling.get("Q45_opts")[1]},
-        ],
+        "depends_on": {
+            "question": "Question 45",
+            "expected_value": q_vertaling.get("Q45_opts")[1]
+        },
     },
     "Question 50": {
         "text": q_vertaling.get("Q50_text"),
@@ -1281,14 +1045,14 @@ QUESTIONS = {
     "Question 52": {
         "text": q_vertaling.get("Q52_text"),
         "type": "text",
-        "depends_on": [
-            {"question": "Question 50", "expected_value": q_vertaling.get("yes", "Ja")},
-            {"question": "Question 51", "expected_value": q_vertaling.get("Q51_opts")[2]},
-        ],
+        "depends_on": {
+            "question": "Question 51",
+            "expected_value": q_vertaling.get("Q51_opts")[2]
+        },
     },
     "Question 53": {
         "text": q_vertaling.get("Q53_text"),
-        "type": "adres",
+        "type": "text",
         "depends_on": {
             "question": "Question 50",
             "expected_value": q_vertaling.get("yes", "Ja")
@@ -1306,10 +1070,10 @@ QUESTIONS = {
     "Question 55": {
         "text": q_vertaling.get("Q55_text"),
         "type": "bestand",
-        "depends_on": [
-            {"question": "Question 50", "expected_value": q_vertaling.get("yes", "Ja")},
-            {"question": "Question 54", "expected_value": q_vertaling.get("yes", "Ja")},
-        ],
+        "depends_on": {
+            "question": "Question 54",
+            "expected_value": q_vertaling.get("yes", "Ja")
+        },
     },
     "Question 56": {
         "text": q_vertaling.get("Q56_text"),
@@ -1323,50 +1087,50 @@ QUESTIONS = {
     "Question 57": {
         "text": q_vertaling.get("Q57_text"),
         "type": "datum",
-        "depends_on": [
-            {"question": "Question 50", "expected_value": q_vertaling.get("yes", "Ja")},
-            {"question": "Question 56", "expected_value": q_vertaling.get("Q56_opts")[0]},
-        ],
+        "depends_on": {
+            "question": "Question 56",
+            "expected_value": q_vertaling.get("Q56_opts")[0]
+        },
     },
     "Question 58": {
         "text": q_vertaling.get("Q58_text"),
         "type": "bestand",
-        "depends_on": [
-            {"question": "Question 50", "expected_value": q_vertaling.get("yes", "Ja")},
-            {"question": "Question 56", "expected_value": q_vertaling.get("Q56_opts")[0]},
-        ],
+        "depends_on": {
+            "question": "Question 56",
+            "expected_value": q_vertaling.get("Q56_opts")[0]
+        },
     },
     "Question 59": {
         "text": q_vertaling.get("Q59_text"),
         "type": "bestand",
-        "depends_on": [
-            {"question": "Question 50", "expected_value": q_vertaling.get("yes", "Ja")},
-            {"question": "Question 56", "expected_value": q_vertaling.get("Q56_opts")[0]},
-        ],
+        "depends_on": {
+            "question": "Question 56",
+            "expected_value": q_vertaling.get("Q56_opts")[0]
+        },
     },
     "Question 60": {
         "text": q_vertaling.get("Q60_text"),
         "type": "datum",
-        "depends_on": [
-            {"question": "Question 50", "expected_value": q_vertaling.get("yes", "Ja")},
-            {"question": "Question 56", "expected_value": q_vertaling.get("Q56_opts")[1]},
-        ],
+        "depends_on": {
+            "question": "Question 56",
+            "expected_value": q_vertaling.get("Q56_opts")[1]
+        },
     },
     "Question 61": {
         "text": q_vertaling.get("Q61_text"),
         "type": "bestand",
-        "depends_on": [
-            {"question": "Question 50", "expected_value": q_vertaling.get("yes", "Ja")},
-            {"question": "Question 56", "expected_value": q_vertaling.get("Q56_opts")[1]},
-        ],
+        "depends_on": {
+            "question": "Question 56",
+            "expected_value": q_vertaling.get("Q56_opts")[1]
+        },
     },
     "Question 62": {
         "text": q_vertaling.get("Q62_text"),
         "type": "bestand",
-        "depends_on": [
-            {"question": "Question 50", "expected_value": q_vertaling.get("yes", "Ja")},
-            {"question": "Question 56", "expected_value": q_vertaling.get("Q56_opts")[1]},
-        ],
+        "depends_on": {
+            "question": "Question 56",
+            "expected_value": q_vertaling.get("Q56_opts")[1]
+        },
     },
     "Question 63": {
         "text": q_vertaling.get("Q63_text"),
@@ -1389,9 +1153,7 @@ QUESTIONS = {
     },
     "Question 66": {
         "text": q_vertaling.get("Q66_text"),
-        "type": "tabel",
-        "col1": q_vertaling.get("Q66_col1"),
-        "col2": q_vertaling.get("Q66_col2"),
+        "type": "text",
         "depends_on": {
             "question": "Question 65",
             "expected_value": q_vertaling.get("yes", "Ja")
@@ -1413,11 +1175,10 @@ QUESTIONS = {
         "col1": q_vertaling.get("Q66_col1"),
         "col2": q_vertaling.get("Q68_col2"),
         "allow_negative": True,
-        "prefill_from": "Question 66",
-        "depends_on": [
-            {"question": "Question 65", "expected_value": q_vertaling.get("yes", "Ja")},
-            {"question": "Question 67", "expected_value": q_vertaling.get("yes", "Ja")},
-        ],
+        "depends_on": {
+            "question": "Question 67",
+            "expected_value": q_vertaling.get("yes", "Ja")
+        },
     },
     "Question 69": {
         "text": q_vertaling.get("Q69_text"),
@@ -1434,11 +1195,10 @@ QUESTIONS = {
         "type": "tabel",
         "col1": q_vertaling.get("Q66_col1"),
         "col2": q_vertaling.get("Q70_col2"),
-        "prefill_from": "Question 66",
-        "depends_on": [
-            {"question": "Question 65", "expected_value": q_vertaling.get("yes", "Ja")},
-            {"question": "Question 69", "expected_value": q_vertaling.get("yes", "Ja")},
-        ],
+        "depends_on": {
+            "question": "Question 69",
+            "expected_value": q_vertaling.get("yes", "Ja")
+        },
     },
     "Question 71": {
         "text": q_vertaling.get("Q71_text"),
@@ -1447,8 +1207,7 @@ QUESTIONS = {
     },
     "Question 72": {
         "text": q_vertaling.get("Q72_text"),
-        "toelichting": q_vertaling.get("Q72_toelicht"),
-        "type": "multi_bestand_vrij",
+        "type": "bestand",
         "depends_on": {
             "question": "Question 71",
             "expected_value": q_vertaling.get("yes", "Ja")
@@ -1456,17 +1215,10 @@ QUESTIONS = {
     },
     "Question 73": {
         "text": q_vertaling.get("Q73_text"),
-        "type": "choice",
-        "options": JA_NEE_OPTIES,
-    },
-    "Question 73b": {
-        "text": q_vertaling.get("Q73b_text"),
-        "type": "tabel_3col",
-        "col1": q_vertaling.get("Q73b_col1"),
-        "col2": q_vertaling.get("Q73b_col2"),
-        "col3": q_vertaling.get("Q73b_col3"),
+        "toelichting": q_vertaling.get("Q73_toelicht"),
+        "type": "text",
         "depends_on": {
-            "question": "Question 73",
+            "question": "Question 71",
             "expected_value": q_vertaling.get("yes", "Ja")
         },
     },
@@ -1477,7 +1229,7 @@ QUESTIONS = {
     },
     "Question 75": {
         "text": q_vertaling.get("Q75_text"),
-        "type": "adres",
+        "type": "text",
         "depends_on": {
             "question": "Question 74",
             "expected_value": q_vertaling.get("yes", "Ja")
@@ -1534,8 +1286,7 @@ QUESTIONS = {
     },
     "Question 83": {
         "text": q_vertaling.get("Q83_text"),
-        "toelichting": q_vertaling.get("Q83_toelicht"),
-        "type": "multi_bestand_vrij",
+        "type": "bestand",
         "depends_on": {
             "question": "Question 82",
             "expected_value": q_vertaling.get("yes", "Ja")
@@ -1548,8 +1299,7 @@ QUESTIONS = {
     },
     "Question 85": {
         "text": q_vertaling.get("Q85_text"),
-        "toelichting": q_vertaling.get("Q85_toelicht"),
-        "type": "multi_bestand_vrij",
+        "type": "bestand",
         "depends_on": {
             "question": "Question 84",
             "expected_value": q_vertaling.get("yes", "Ja")
@@ -1562,7 +1312,7 @@ QUESTIONS = {
     },
     "Question 87": {
         "text": q_vertaling.get("Q87_text"),
-        "type": "adres",
+        "type": "text",
         "depends_on": {
             "question": "Question 86",
             "expected_value": q_vertaling.get("yes", "Ja")
@@ -1570,7 +1320,7 @@ QUESTIONS = {
     },
     "Question 88": {
         "text": q_vertaling.get("Q88_text"),
-        "type": "int",
+        "type": "text",
         "depends_on": {
             "question": "Question 86",
             "expected_value": q_vertaling.get("yes", "Ja")
@@ -1591,7 +1341,7 @@ QUESTIONS = {
     },
     "Question 91": {
         "text": q_vertaling.get("Q91_text"),
-        "type": "tabel",
+        "type": "text",
         "depends_on": {
             "question": "Question 90",
             "expected_value": q_vertaling.get("yes", "Ja")
@@ -1622,8 +1372,7 @@ QUESTIONS = {
     },
     "Question 95": {
         "text": q_vertaling.get("Q95_text"),
-        "toelichting": q_vertaling.get("Q95_toelicht"),
-        "type": "multi_bestand_vrij",
+        "type": "bestand",
         "depends_on": {
             "question": "Question 92",
             "expected_value": q_vertaling.get("yes", "Ja")
@@ -1720,7 +1469,7 @@ STAPPEN = {
     },
     "Stap 2": {
         "titel": s_vertaling.get("Stap 2", "Persoonlijke gegevens"),
-        "vragen": ["Question 2", "Question 3b", "Question 3", "Question 4", "Question 5", "Question 6","Question 7"],
+        "vragen": ["Question 2", "Question 3", "Question 4", "Question 5", "Question 6","Question 7"],
         "next_step": "Stap 3"
     },
     "Stap 3": {
@@ -1733,7 +1482,7 @@ STAPPEN = {
     },
     "Stap 4": {
         "titel": s_vertaling.get("Stap 4", "Persoonlijke gegevens van Fiscaal Partner"),
-        "vragen": ["Question 11","Question 11b","Question 12","Question 13","Question 14","Question 15"],
+        "vragen": ["Question 11","Question 12","Question 13","Question 14","Question 15"],
         "next_step": "Stap 5"
     },
     "Stap 5": {
@@ -1749,98 +1498,52 @@ STAPPEN = {
     "Stap 7": {
         "titel": s_vertaling.get("Stap 7", "Inkomen uit loondienst"),
         "vragen": ["Question 28", "Question 29", "Question 30", "Question 31", "Question 32"],
-    },
-    "Stap 7a": {
-        "titel": s_vertaling.get("Stap 7a", "Inkomen uit loondienst van uw partner"),
-        "vragen": ["Question 28p", "Question 29p", "Question 30p", "Question 31p", "Question 32p"],
-        "next_step": "Stap 8",
+        "next_step": "Stap 8"
     },
     "Stap 8": {
         "titel": s_vertaling.get("Stap 8", "Inkomen uit ondernemerschap"),
         "vragen": ["Question 33", "Question 34", "Question 35", "Question 36", "Question 37", "Question 38"],
-    },
-    "Stap 8a": {
-        "titel": s_vertaling.get("Stap 8a", "Inkomen uit ondernemerschap van uw partner"),
-        "vragen": ["Question 33p", "Question 34p", "Question 35p", "Question 36p", "Question 37p", "Question 38p"],
-        "next_step": "Stap 9",
+        "next_step": "Stap 9"
     },
     "Stap 9": {
         "titel": s_vertaling.get("Stap 9", "Eigen woonverblijf"),
         "vragen": ["Question 39", "Question 40", "Question 41", "Question 42", "Question 43", "Question 44", "Question 45", "Question 46", "Question 47", "Question 48", "Question 49"],
-        "partner_melding": True,
+        "next_step": "Stap 10"
     },
     "Stap 10": {
         "titel": s_vertaling.get("Stap 10", "Tweede eigen woonverblijf"),
         "vragen": ["Question 50", "Question 51", "Question 52", "Question 53", "Question 54", "Question 55", "Question 56", "Question 57", "Question 58", "Question 59", "Question 60", "Question 61", "Question 62"],
-        "partner_melding": True,
+        "next_step": "Stap 11"
     },
     "Stap 11": {
         "titel": s_vertaling.get("Stap 11", "Hypotheek"),
         "vragen": ["Question 63", "Question 64"],
-        "next_step": "Stap 12",
-        "partner_melding": True,
+        "next_step": "Stap 12"
     },
     "Stap 12": {
         "titel": s_vertaling.get("Stap 12", "Aanmerkelijk belang"),
         "vragen": ["Question 65", "Question 66", "Question 67", "Question 68", "Question 69", "Question 70"],
-        "next_step": "Stap 13",
-        "partner_melding": True,
+        "next_step": "Stap 13"
     },
     "Stap 13": {
         "titel": s_vertaling.get("Stap 13", "Sparen"),
-        "vragen": ["Question 71", "Question 72", "Question 73", "Question 73b"],
-        "next_step": "Stap 14",
-        "partner_melding": True,
+        "vragen": ["Question 71", "Question 72", "Question 73"],
+        "next_step": "Stap 14"
     },
     "Stap 14": {
         "titel": s_vertaling.get("Stap 14", "Tweede eigen woonverblijf"),
         "vragen": ["Question 74", "Question 75", "Question 76", "Question 77", "Question 78", "Question 79", "Question 80", "Question 81"],
-        "next_step": "Stap 15",
-        "partner_melding": True,
+        "next_step": "Stap 15"
     },
     "Stap 15": {
         "titel": s_vertaling.get("Stap 15", "Overig"),
-        "vragen": ["Question 82", "Question 83"],
-        "next_step": "Stap 16",
-        "partner_melding": True,
-    },
-    "Stap 16": {
-        "titel": s_vertaling.get("Stap 16", "Buitenlands vermogen, beleggingen, schulden en inkomen"),
-        "vragen": ["Question 84", "Question 85", "Question 86", "Question 87", "Question 88", "Question 89", "Question 90", "Question 91", "Question 92", "Question 93", "Question 94", "Question 95"],
-        "next_step": "Stap 17",
-        "partner_melding": True,
-    },
-    "Stap 17": {
-        "titel": s_vertaling.get("Stap 17", "Aftrekposten"),
-        "vragen": ["Question 98", "Question 99", "Question 96", "Question 97", "Question 100", "Question 101"],
-        "next_step": "Stap 18",
-        "partner_melding": True,
-    },
-    "Stap 18": {
-        "titel": s_vertaling.get("Stap 18", "Afronding"),
-        "vragen": ["Question 102", "Question 103", "Question 104", "Question 105", "Question 106", "Question 107"],
-        "next_step": None,
-        "partner_melding": True,
+        "vragen": ["Question 82", "Question 83", "Question 84", "Question 85", "Question 86", "Question 87", "Question 88", "Question 89", "Question 90", "Question 91", "Question 92", "Question 93", "Question 94", "Question 95", "Question 96", "Question 97", "Question 98", "Question 99", "Question 100", "Question 101", "Question 102", "Question 103", "Question 104", "Question 105", "Question 106", "Question 107"],
+        "next_step": "Stap 15"
     }
 }
 
 
-# --- MELDING: eerdere antwoorden geladen ---
-if st.session_state.toon_melding:
-    st.title(Start_vertaling["melding_titel"])
-    st.write("")
-    jaar_geladen = st.session_state.geladen_van_jaar or JAAR - 1
-    st.info(Start_vertaling["melding_tekst"](jaar_geladen))
-    st.write("")
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        if st.button(Start_vertaling["melding_knop"], width='stretch', type="primary"):
-            st.session_state.toon_melding = False
-            st.session_state.current_step = "Stap 1"
-            st.rerun()
-    st.stop()
-
-# --- 1. DE STARTPAGINA
+# --- 1. DE STARTPAGINA 
 if current_step == "START":
     st.title(Start_vertaling["start_title"])
     st.write(Start_vertaling["start_subtitle"])
@@ -1854,36 +1557,15 @@ if current_step == "START":
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         if st.button(Start_vertaling["start_button"], width='stretch', type="primary"):
-            if not st.session_state.previous_loaded:
-                vorige_antwoorden = load_previous_answers(st.session_state.user.id, JAAR)
-                if vorige_antwoorden:
-                    st.session_state.antwoorden_log = vorige_antwoorden
-                    # Bepaal van welk jaar de antwoorden zijn geladen
-                    for zoekjaar in [JAAR, JAAR - 1]:
-                        check = load_previous_answers(st.session_state.user.id, zoekjaar + 1)
-                        if check == vorige_antwoorden:
-                            st.session_state.geladen_van_jaar = zoekjaar
-                            break
-                    if st.session_state.geladen_van_jaar is None:
-                        st.session_state.geladen_van_jaar = JAAR - 1
-                    st.session_state.toon_melding = True
-                    st.session_state.previous_loaded = True
-                    st.rerun()
-                st.session_state.previous_loaded = True
-            if not st.session_state.toon_melding:
-                st.session_state.current_step = "Stap 1"
-                st.rerun()
+            st.session_state.current_step = "Stap 1"
+            st.rerun()
 
 # --- 2. DE WERKELIJKE VRAGENLIJST (Hier tonen we de formuliertitels) ---
 elif current_step and current_step in STAPPEN:
-    scroll_to_top()
     stap_info = STAPPEN[current_step]
     with st.container(key=f"focus_reset_{current_step.replace(' ', '_')}"):
         st.caption(f"{t['caption']}: {current_step}")
         st.subheader(stap_info["titel"])
-        if stap_info.get("partner_melding") and st.session_state.antwoorden_log.get("Question 8") == q_vertaling.get("yes", "Ja") or stap_info.get("partner_melding") and st.session_state.antwoorden_log.get("Question 10") == q_vertaling.get("yes", "Ja"):
-            st.warning(q_vertaling.get("partner_melding", "⚠️ Let op! Onderstaande vragen betreffen zowel u als uw partner."))
-        st.divider()
     # Een tijdelijke dictionary om de geldige antwoorden van DEZE pagina in te verzamelen
     pagina_antwoorden = {}
     alle_vragen_geldig = True
@@ -1897,28 +1579,16 @@ elif current_step and current_step in STAPPEN:
         
         # --- DYNAMISCHE AFHANKELIJKHEIDSCHECK ---
         if "depends_on" in vraag:
-            # Normaliseer naar altijd een lijst van condities
-            condities = vraag["depends_on"]
-            if isinstance(condities, dict):
-                condities = [condities]
-
-            skip = False
-            for conditie in condities:
-                target_vraag     = conditie["question"]
-                # pagina_antwoorden heeft prioriteit over antwoorden_log (huidige invoer boven oude antwoorden)
-                actueel_antwoord = pagina_antwoorden.get(target_vraag) if target_vraag in pagina_antwoorden else st.session_state.antwoorden_log.get(target_vraag)
-
-                if "expected_value" in conditie:
-                    if str(actueel_antwoord) != str(conditie["expected_value"]):
-                        skip = True
-                        break
-                elif "expected_value_not" in conditie:
-                    if str(actueel_antwoord) == str(conditie["expected_value_not"]):
-                        skip = True
-                        break
-
-            if skip:
-                continue
+            afhankelijkheid = vraag["depends_on"]
+            target_vraag = afhankelijkheid["question"]
+            verwachte_waarde = afhankelijkheid["expected_value"]
+            
+            # Check het antwoord in de hoofdlog óf in de huidige pagina-antwoorden
+            actueel_antwoord = st.session_state.antwoorden_log.get(target_vraag) or pagina_antwoorden.get(target_vraag)
+            
+            # Als het antwoord niet overeenkomt (of nog niet is ingevuld), skippen we deze vraag!
+            if str(actueel_antwoord) != str(verwachte_waarde):
+                continue  # Spring direct naar de volgende vraag in de loop
         # ----------------------------------------
 
         v_type = vraag.get("type", "text")
@@ -1945,110 +1615,50 @@ elif current_step and current_step in STAPPEN:
             antwoord = st.radio(t["choice_placeholder"] ,vraag["options"], key=input_key, index=default_index)
 
         elif v_type == "int":
-            default_val = int(bestaand_antwoord) if bestaand_antwoord is not None else None
-            waarde = st.number_input(t["int_message"], step=1, value=default_val, min_value=0, key=input_key)
-            if waarde is not None:
-                antwoord = int(waarde)
+            # Pak het oude getal, of standaard 1
+            default_val = int(bestaand_antwoord) if bestaand_antwoord is not None else 1
+            antwoord = st.number_input(t["int_message"], step=1, value=default_val, key=input_key)
 
         elif v_type == "bestand":
+            # Het label zetten we op 'collapsed' omdat je vraag-titel er al boven staat
             uploaded_file = st.file_uploader(
-                "Bestand uploader",
-                key=input_key,
+                "Bestand uploader", 
+                key=input_key, 
                 label_visibility="collapsed"
             )
             if uploaded_file:
-                ok, pad = upload_document(uploaded_file, st.session_state.user.id, JAAR, q_id)
-                if ok:
-                    antwoord = pad
-                else:
-                    st.error(f"Upload mislukt: {pad}")
+                antwoord = uploaded_file.name
             elif bestaand_antwoord:
-                st.info(f"📁 Eerder geüpload: **{bestaand_antwoord.split('/')[-1]}**")
+                st.info(f"📁 Eerder geüpload bestand: **{bestaand_antwoord}**")
                 antwoord = bestaand_antwoord
 
-        elif v_type == "multi_bestand_vrij":
-            uploaded_files = st.file_uploader(
-                "Bestanden uploader",
-                key=input_key,
-                label_visibility="collapsed",
-                accept_multiple_files=True
-            )
-            if uploaded_files:
-                paden = []
-                for f in uploaded_files:
-                    ok, pad = upload_document(f, st.session_state.user.id, JAAR, q_id)
-                    if ok:
-                        paden.append(pad)
-                    else:
-                        st.error(f"Upload mislukt voor {f.name}: {pad}")
-                if paden:
-                    antwoord = paden
-            elif bestaand_antwoord:
-                eerder = bestaand_antwoord if isinstance(bestaand_antwoord, list) else [bestaand_antwoord]
-                namen = [p.split("/")[-1] for p in eerder]
-                st.info("📁 Eerder geüpload: " + ", ".join(f"**{n}**" for n in namen))
-                antwoord = eerder
-
-        elif v_type == "multi_bestand":
-            # Haal het aantal werkgevers op uit de gekoppelde vraag (max 5)
-            herhaling  = vraag.get("herhaling", {})
-            bron_vraag = herhaling.get("vraag")
-            maximum    = herhaling.get("max", 5)
-
-            # Kijk eerst in de huidige pagina-antwoorden, dan in de log
-            aantal_raw = pagina_antwoorden.get(bron_vraag) or st.session_state.antwoorden_log.get(bron_vraag)
-            try:
-                aantal = max(1, min(int(aantal_raw), maximum))
-            except (TypeError, ValueError):
-                aantal = 1
-
-            # Laad eerder opgeslagen lijst (voor pre-populatie)
-            eerder = bestaand_antwoord if isinstance(bestaand_antwoord, list) else []
-
-            bestanden = []
-            for i in range(aantal):
-                label = f"Werkgever {i + 1}" if aantal > 1 else ""
-                if label:
-                    st.caption(label)
-                eerder_i = eerder[i] if i < len(eerder) else None
-                upload = st.file_uploader(
-                    f"Uploader {i + 1}",
-                    key=f"{input_key}_{i}",
-                    label_visibility="collapsed"
-                )
-                if upload:
-                    ok, pad = upload_document(upload, st.session_state.user.id, JAAR, f"{q_id}_{i}")
-                    if ok:
-                        bestanden.append(pad)
-                    else:
-                        st.error(f"Upload mislukt: {pad}")
-                elif eerder_i:
-                    st.info(f"📁 Eerder geüpload: **{eerder_i.split('/')[-1]}**")
-                    bestanden.append(eerder_i)
-
-            # Geldig als minstens één bestand is geüpload
-            if bestanden:
-                antwoord = bestanden
-
         elif v_type == "adres":
-            if st_searchbox is not None:
-                gekozen_adres = st_searchbox(
-                    google_address_autocomplete,
-                    key=st.secrets["GOOGLE_MAPS_API_KEY"],
-                    placeholder="Begin met typen... (bijv. Keizersgracht 123)"
-                )
-                if gekozen_adres:
-                    antwoord = gekozen_adres
-                    st.success(f"📍 Geselecteerd adres: {antwoord}")
-                elif bestaand_antwoord:
-                    st.info(f"📁 Eerder ingevuld adres: **{bestaand_antwoord}**")
-                    antwoord = bestaand_antwoord
-            else:
-                # Fallback als streamlit_searchbox niet geïnstalleerd is
-                default_val = str(bestaand_antwoord) if bestaand_antwoord else ""
-                antwoord_veld = st.text_input("Adres:", value=default_val, key=input_key)
-                if antwoord_veld.strip():
-                    antwoord = antwoord_veld.strip()
+            st.write(f"#### {vraag['text']}")
+            if "toelichting" in vraag:
+                st.info(vraag["toelichting"])
+
+            # Dit genereert een prachtige, dynamische zoekbalk die Google live doorzoekt
+            gekozen = st_searchbox(
+                google_address_autocomplete,
+                key=input_key,
+                placeholder="Begin met typen... (bijv. Keizersgracht 123)"
+            )
+
+            if gekozen:
+                # gekozen is een (description, place_id) tuple
+                beschrijving, place_id = gekozen
+                antwoord = beschrijving
+                st.success(f"📍 Geselecteerd adres: {antwoord}")
+
+                # Haal adrescomponenten op en sla ze apart op
+                details = get_adres_details(place_id)
+                if details:
+                    for veld, waarde in details.items():
+                        if waarde:
+                            st.session_state["antwoorden_log"][f"{vraag_id}_{veld}"] = waarde
+            elif bestaand_antwoord:
+                st.info(f"📁 Eerder ingevuld adres: **{bestaand_antwoord}**")
+                antwoord = bestaand_antwoord
 
         elif v_type == "datum":
             default_val = str(bestaand_antwoord) if bestaand_antwoord is not None else ""
@@ -2059,8 +1669,10 @@ elif current_step and current_step in STAPPEN:
                 st.error(t["error_date"])
         
         elif v_type == "checkbox":
-            default_toggle = bool(bestaand_antwoord) if bestaand_antwoord is not None else False
-            antwoord = st.toggle(vraag["text"], value=default_toggle, key=f"cb_{q_id}")
+            # Sla de status direct op via een unieke key
+            privacy_akkoord = st.checkbox(vraag["text"], key=f"cb_{q_id}")
+            # Een checkbox antwoord is direct de boolean waarde zelf (True of False)
+            antwoord = privacy_akkoord
 
         elif v_type == "BSN":
             default_val = str(bestaand_antwoord) if bestaand_antwoord is not None else ""
@@ -2069,6 +1681,11 @@ elif current_step and current_step in STAPPEN:
                 antwoord = antwoord_veld
             elif antwoord_veld:
                 st.error(t["error_bsn"])
+
+        elif v_type == "tekst_optioneel":
+            default_val = str(bestaand_antwoord) if bestaand_antwoord is not None else ""
+            antwoord_veld = st.text_input("Optioneel", value=default_val, key=input_key, placeholder="Optioneel", label_visibility="collapsed")
+            antwoord = antwoord_veld  # Altijd opslaan, ook als leeg
 
         elif v_type == "emailadress":
             default_val = str(bestaand_antwoord) if bestaand_antwoord is not None else ""
@@ -2080,47 +1697,38 @@ elif current_step and current_step in STAPPEN:
 
         elif v_type == "phonenumber":
             default_val = str(bestaand_antwoord) if bestaand_antwoord is not None else ""
-            antwoord = phone_input(vraag["text"], key=input_key, default_value=default_val)
+            antwoord_veld = st.text_input("Telefoonnummer:", value=default_val, key=input_key)
+            if antwoord_veld.isdigit() and len(antwoord_veld) >= 10:
+                antwoord = antwoord_veld
+            elif antwoord_veld:
+                st.error(t["error_phone"])
 
         elif v_type == "kvk-nummer":
             default_val = str(bestaand_antwoord) if bestaand_antwoord is not None else ""
-            antwoord_veld = st.text_input(t["error_kvk"], value=default_val, key=input_key)
+            antwoord_veld = st.text_input(t["kvk_error"], value=default_val, key=input_key)
             if antwoord_veld.isdigit() and len(antwoord_veld) == 9:
                 antwoord = antwoord_veld
             elif antwoord_veld:
                 st.error(t["error_bsn"])
 
         elif v_type == "tabel":
-            prefill_from = vraag.get("prefill_from")
             allow_negative = vraag.get("allow_negative", False)
-            default_val = bestaand_antwoord if isinstance(bestaand_antwoord, list) else None
-            if default_val is None and prefill_from:
-                bron = pagina_antwoorden.get(prefill_from) or st.session_state.antwoorden_log.get(prefill_from)
-                if bron and isinstance(bron, list):
-                    default_val = [{"naam": r.get("naam", ""), "bedrag": None} for r in bron]
-            antwoord = dynamic_list_input(
-                key=input_key,
-                col1_label=vraag.get("col1", t["table_col1"]),
-                col2_label=vraag.get("col2", t["table_col2"]),
-                add_btn_label=t["add_row_btn"],
-                default_value=default_val,
-                allow_negative=allow_negative,
-            )
-
-        elif v_type == "tabel_3col":
-            antwoord = dynamic_list_input(
-                key=input_key,
-                col1_label=vraag.get("col1", t["table_col1"]),
-                col2_label=vraag.get("col2", t["table_col2"]),
-                col3_label=vraag.get("col3"),
-                add_btn_label=t["add_row_btn"],
-                default_value=bestaand_antwoord if isinstance(bestaand_antwoord, list) else None
-            )
-
-        elif v_type == "tekst_optioneel":
-            default_val = str(bestaand_antwoord) if bestaand_antwoord is not None else ""
-            antwoord_veld = st.text_input("Optioneel", value=default_val, key=input_key, placeholder="Optioneel", label_visibility="collapsed")
-            antwoord = antwoord_veld  # Altijd geldig, ook als leeg
+            col1_label = vraag.get("col1", t["table_col1"])
+            col2_label = vraag.get("col2", t["table_col2"])
+            if bestaand_antwoord is not None:
+                df_basis = pd.DataFrame(bestaand_antwoord)
+                if "naam" in df_basis.columns and col1_label != "naam":
+                    df_basis = df_basis.rename(columns={"naam": col1_label, "bedrag": col2_label})
+            else:
+                df_basis = pd.DataFrame([{col1_label: "", col2_label: 0}])
+            edited_df = st.data_editor(df_basis, num_rows="dynamic", width='stretch', key=input_key)
+            if edited_df is not None and not edited_df.empty:
+                if col1_label in edited_df.columns and col2_label in edited_df.columns:
+                    naam_filter = edited_df[col1_label].astype(str).str.strip() != ""
+                    bedrag_filter = edited_df[col2_label].notna() if allow_negative else (edited_df[col2_label] > 0)
+                    filtered_df = edited_df[naam_filter & bedrag_filter]
+                    if not filtered_df.empty:
+                        antwoord = filtered_df.rename(columns={col1_label: "naam", col2_label: "bedrag"}).to_dict(orient="records")
 
         else: # Standaard vrije tekst
             default_val = str(bestaand_antwoord) if bestaand_antwoord is not None else ""
@@ -2152,10 +1760,7 @@ elif current_step and current_step in STAPPEN:
                 st.rerun()
 
     with col2:
-        # Laatste stap: de stap waarvan de key de laatste is in STAPPEN
-        is_laatste_stap = current_step == list(STAPPEN.keys())[-1]
-        knop_label = t["submit_btn"] if is_laatste_stap else t["next_btn"]
-        if st.button(knop_label, type="primary" if is_laatste_stap else "secondary"):
+        if st.button(t["next_btn"]):
             # 1. Check specifiek of er een ongevinkte privacy-checkbox op de pagina staat
             heeft_ongevinkte_privacy = False
             for q_id, antw in pagina_antwoorden.items():
@@ -2168,72 +1773,21 @@ elif current_step and current_step in STAPPEN:
                 st.error(t["error_privacy"])
             
             elif alle_vragen_geldig:
-                # Sla de ingevulde antwoorden op
                 st.session_state.antwoorden_log.update(pagina_antwoorden)
-
-                # Verwijder antwoorden van vragen die op deze stap NIET getoond werden
-                for q_id in stap_info.get("vragen", []):
-                    if q_id not in pagina_antwoorden and q_id in st.session_state.antwoorden_log:
-                        del st.session_state.antwoorden_log[q_id]
-
                 st.session_state.history.append(current_step)
                 
                 next_step = None
                 route_dict = stap_info.get("route", {})
                 
-                # Helper: heeft de gebruiker een fiscaal partner?
-                ja = q_vertaling.get("yes", "Ja")
-                heeft_partner = (
-                    st.session_state.antwoorden_log.get("Question 8") == ja or
-                    st.session_state.antwoorden_log.get("Question 10") == ja
-                )
-
                 # SPECIFIEKE UITZONDERINGS-ROUTING VOOR STAP 3
                 if current_step == "Stap 3":
                     if "Question 10" in pagina_antwoorden:
                         bepalend_antwoord = pagina_antwoorden.get("Question 10")
                     else:
                         bepalend_antwoord = pagina_antwoorden.get("Question 8")
+                    
                     next_step = route_dict.get(str(bepalend_antwoord))
-
-                # ROUTERING STAP 7: met partner → Stap 7a, zonder → Stap 8
-                elif current_step == "Stap 7":
-                    next_step = "Stap 7a" if heeft_partner else "Stap 8"
-
-                # ROUTERING STAP 8: met partner → Stap 8a, zonder → Stap 9
-                elif current_step == "Stap 8":
-                    next_step = "Stap 8a" if heeft_partner else "Stap 9"
-
-                # SPECIFIEKE UITZONDERINGS-ROUTING VOOR STAP 9
-                # Q39=Nee → geen eigen woning → sla Stap 10 én 11 over
-                # Q39=Ja  → altijd naar Stap 10 (Q50 staat daar als eerste vraag)
-                # Q39=Ja, Q43=Nee → geen hypotheek eerste woning, maar Q50 bepaalt of Stap 10 nodig is
-                elif current_step == "Stap 9":
-                    ja  = q_vertaling.get("yes", "Ja")
-                    q39 = pagina_antwoorden.get("Question 39")
-                    q43 = pagina_antwoorden.get("Question 43")
-
-                    if q39 == ja:
-                        next_step = "Stap 10"          # altijd naar Stap 10, Q50 staat daar
-                    elif q43 == ja:
-                        next_step = "Stap 11"          # hypotheek maar geen eigen woning (edge case)
-                    else:
-                        next_step = "Stap 12"          # geen eigen woning, geen hypotheek
-
-                # SPECIFIEKE UITZONDERINGS-ROUTING VOOR STAP 10
-                # Q50=Nee én Q43=Nee → geen hypotheek op beide → sla Stap 11 over
-                # Q50=Ja, Q54=Nee én Q43=Nee → idem
-                elif current_step == "Stap 10":
-                    ja  = q_vertaling.get("yes", "Ja")
-                    q43 = st.session_state.antwoorden_log.get("Question 43")
-                    q50 = pagina_antwoorden.get("Question 50")
-                    q54 = pagina_antwoorden.get("Question 54")
-
-                    if q43 == ja or q54 == ja:
-                        next_step = "Stap 11"          # minstens één hypotheek → Stap 11
-                    else:
-                        next_step = "Stap 12"          # geen hypotheek op beide woningen → sla 11 over
-
+                                    
                 # STANDAARD ROUTERING VOOR ALLE OVERIGE STAPPEN
                 elif "route_bepaling" in stap_info:
                     bepalende_vraag = stap_info["route_bepaling"]
@@ -2243,51 +1797,23 @@ elif current_step and current_step in STAPPEN:
                     next_step = stap_info.get("next_step")
 
                 # AFHANDELING VAN DE VOLGENDE STAP IN DE STATE
-                # Wis antwoorden van overgeslagen stappen
-                stap_namen = list(STAPPEN.keys())
-                if current_step in stap_namen and next_step in stap_namen:
-                    current_idx = stap_namen.index(current_step)
-                    next_idx    = stap_namen.index(next_step)
-                    for i in range(current_idx + 1, next_idx):
-                        overgeslagen = stap_namen[i]
-                        for q_id in STAPPEN[overgeslagen].get("vragen", []):
-                            if q_id in st.session_state.antwoorden_log:
-                                del st.session_state.antwoorden_log[q_id]
-
                 if next_step is None or next_step == "END" or next_step not in STAPPEN:
                     st.session_state.current_step = "END"
-                    st.rerun()
                 else:
                     st.session_state.current_step = next_step
                     st.rerun()
             else:
                 st.warning(t["warning_empty"])
-if current_step != "END":
-    # [Hier draait de reguliere rendering van je stappen/vragen]
-    pass
+                
 else:
-    # EINDscherm bereikt
+    # EINDscherm
     st.success(t["success"])
     st.balloons()
     st.write(t["success_sub"])
+    st.json(st.session_state.antwoorden_log)
     
-    # Automatisch opslaan zodra het eindscherm geladen wordt (indien nog niet gedaan)
-    if not st.session_state.data_verstuurd:
-        with st.spinner(t["saving_db"]):
-            success, msg = save_to_supabase(
-                st.session_state.antwoorden_log,
-                st.session_state.taal,
-                st.session_state.user.id,
-                JAAR,
-                email=st.session_state.user.email
-            )
-            if success:
-                st.session_state.data_verstuurd = True
-                st.success(t["save_success"])
-            else:
-                st.error(f"{t['save_failed']} {msg}")
-
-    if st.button(t["restart_btn"], type="primary"):
-        st.session_state.clear()
-        supabase.auth.sign_out()
+    if st.button(t["restart_btn"]):
+        st.session_state.current_step = "Stap 1"
+        st.session_state.antwoorden_log = {}
+        st.session_state.history = []
         st.rerun()

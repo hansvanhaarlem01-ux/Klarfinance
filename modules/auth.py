@@ -38,7 +38,7 @@ def show_login_screen():
         with st.form("login_form"):
             email    = st.text_input("E-mailadres", key="login_email")
             password = st.text_input("Wachtwoord", type="password", key="login_pw")
-            inloggen = st.form_submit_button("Inloggen", type="primary", use_container_width=True)
+            inloggen = st.form_submit_button("Inloggen", type="primary", width='stretch')
 
         if inloggen:
             if not email or not password:
@@ -63,7 +63,7 @@ def show_login_screen():
             reg_email = st.text_input("E-mailadres", key="reg_email")
             reg_pw    = st.text_input("Wachtwoord (minimaal 6 tekens)", type="password", key="reg_pw")
             reg_pw2   = st.text_input("Herhaal wachtwoord", type="password", key="reg_pw2")
-            registreren = st.form_submit_button("Account aanmaken", use_container_width=True)
+            registreren = st.form_submit_button("Account aanmaken", width='stretch')
 
         if registreren:
             if not reg_email or not reg_pw:
@@ -84,7 +84,7 @@ def show_login_screen():
         st.write("Vul uw e-mailadres in. U ontvangt een link om uw wachtwoord opnieuw in te stellen.")
         with st.form("reset_form"):
             reset_email = st.text_input("E-mailadres", key="reset_email")
-            versturen   = st.form_submit_button("Stuur resetlink", use_container_width=True)
+            versturen   = st.form_submit_button("Stuur resetlink", width='stretch')
 
         if versturen:
             if not reset_email:
@@ -113,7 +113,7 @@ def show_logout_button():
         if is_admin:
             admin_modus = st.session_state.get("admin_modus", False)
             knop_label = "📋 Naar vragenlijst" if admin_modus else "⚙️ Admin panel"
-            if st.button(knop_label, use_container_width=True):
+            if st.button(knop_label, width='stretch'):
                 st.session_state.admin_modus = not admin_modus
                 st.rerun()
 

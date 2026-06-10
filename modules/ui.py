@@ -52,12 +52,6 @@ def inject_uploader_label(taal: str = "NL"):
 # --- PRIVÉ HULPFUNCTIES ---
 
 def scroll_to_top():
-    """
-    Plaatshouder — scroll via JS is niet mogelijk in Streamlit SPA-modus.
-    Wordt aangeroepen bij elke stap-wissel maar doet momenteel niets.
-    Verwijder de aanroepen niet: ze zijn nodig zodra Streamlit een
-    native scroll-API aanbiedt.
-    """
     pass
 
 def _inject_scroll_reset():

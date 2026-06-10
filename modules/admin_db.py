@@ -24,6 +24,7 @@ except Exception:
 VRAAG_LABELS = {
     "Question 1":   "Privacy akkoord",
     "Question 2":   "Voornaam",
+    "Question 3b":  "Tussenvoegsels",
     "Question 3":   "Achternaam",
     "Question 4":   "Telefoonnummer",
     "Question 5":   "E-mailadres",
@@ -33,6 +34,7 @@ VRAAG_LABELS = {
     "Question 9":   "Trouwdatum / datum partnerschap",
     "Question 10":  "Fiscaal partner",
     "Question 11":  "Voornaam partner",
+    "Question 11b": "Tussenvoegsels partner",
     "Question 12":  "Achternaam partner",
     "Question 13":  "Telefoonnummer partner",
     "Question 14":  "E-mailadres partner",
@@ -53,12 +55,23 @@ VRAAG_LABELS = {
     "Question 30":  "Jaaropgave werkgever(s)",
     "Question 31":  "30%-regeling",
     "Question 32":  "Beschikking 30%-regeling",
+    "Question 28p": "Loondienst partner",
+    "Question 29p": "Aantal werkgevers partner",
+    "Question 30p": "Jaaropgave werkgever(s) partner",
+    "Question 31p": "30%-regeling partner",
+    "Question 32p": "Beschikking 30%-regeling partner",
     "Question 33":  "Zelfstandig ondernemer",
     "Question 34":  "Rechtsvorm onderneming",
     "Question 35":  "KvK-nummer",
     "Question 36":  "Boekhoudprogramma",
     "Question 37":  "Winst- en verliesrekening",
     "Question 38":  "Meer dan 1.225 uur besteed",
+    "Question 33p": "Zelfstandig ondernemer partner",
+    "Question 34p": "Rechtsvorm onderneming partner",
+    "Question 35p": "KvK-nummer onderneming partner",
+    "Question 36p": "Boekhoudprogramma partner",
+    "Question 37p": "Winst- en verliesrekening partner",
+    "Question 38p": "Meer dan 1.225 uur besteed partner",
     "Question 39":  "Eigen woning (hoofdverblijf)",
     "Question 40":  "Eigenaarschap woning",
     "Question 41":  "Overige eigenaar woning",
@@ -136,19 +149,23 @@ STAPPEN_ADMIN = {
     "Stap 1":  {"titel": "Privacy verklaring",
                 "vragen": ["Question 1"]},
     "Stap 2":  {"titel": "Persoonlijke gegevens",
-                "vragen": ["Question 2","Question 3","Question 4","Question 5","Question 6","Question 7"]},
+                "vragen": ["Question 2","Question 3b","Question 3","Question 4","Question 5","Question 6","Question 7"]},
     "Stap 3":  {"titel": "Fiscaal partner",
                 "vragen": ["Question 8","Question 9","Question 10"]},
     "Stap 4":  {"titel": "Persoonlijke gegevens van fiscaal partner",
-                "vragen": ["Question 11","Question 12","Question 13","Question 14","Question 15"]},
+                "vragen": ["Question 11","Question 11b","Question 12","Question 13","Question 14","Question 15"]},
     "Stap 5":  {"titel": "Thuiswonende kinderen",
                 "vragen": ["Question 16","Question 17","Question 18"]},
     "Stap 6":  {"titel": "Waar u woonde",
                 "vragen": ["Question 19","Question 20","Question 21","Question 22","Question 23","Question 24","Question 26","Question 27"]},
     "Stap 7":  {"titel": "Inkomen uit loondienst",
                 "vragen": ["Question 28","Question 29","Question 30","Question 31","Question 32"]},
+    "Stap 7a": {"titel": "Inkomen uit loondienst van uw partner",
+                "vragen": ["Question 28p","Question 29p","Question 30p","Question 31p","Question 32p"]},
     "Stap 8":  {"titel": "Inkomen uit ondernemerschap",
                 "vragen": ["Question 33","Question 34","Question 35","Question 36","Question 37","Question 38"]},
+    "Stap 8a": {"titel": "Inkomen uit ondernemerschap van uw partner",
+                "vragen": ["Question 33p","Question 34p","Question 35p","Question 36p","Question 37p","Question 38p"]},
     "Stap 9":  {"titel": "Eigen woonverblijf",
                 "vragen": ["Question 39","Question 40","Question 41","Question 42","Question 43","Question 44","Question 45","Question 46","Question 47","Question 48","Question 49"]},
     "Stap 10": {"titel": "Tweede eigen woonverblijf",
@@ -232,6 +249,20 @@ def search_records(email_query: str = "", jaar: int = None) -> list:
         return result.data or []
     except Exception:
         return []
+
+
+# ── Nextens ID opslaan ───────────────────────────────────────────
+def sla_nextens_id_op(record_id: str, nextens_id: str) -> tuple[bool, str]:
+    """Sla het Nextens ID op in de Supabase record."""
+    if not admin_supabase:
+        return False, "Geen Supabase verbinding"
+    try:
+        admin_supabase.table("vragenlijsten").update(
+            {"nextens_id": nextens_id}
+        ).eq("id", record_id).execute()
+        return True, "Opgeslagen"
+    except Exception as e:
+        return False, str(e)
 
 
 # ── Export functies ──────────────────────────────────────────────
