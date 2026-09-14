@@ -42,7 +42,7 @@ def show_login_screen():
 
         if inloggen:
             if not email or not password:
-                st.error("Vul uw e-mailadres en wachtwoord in.")
+                st.error("Vul je e-mailadres en wachtwoord in.")
             else:
                 try:
                     response = supabase.auth.sign_in_with_password(
@@ -75,24 +75,24 @@ def show_login_screen():
             else:
                 try:
                     supabase.auth.sign_up({"email": reg_email, "password": reg_pw})
-                    st.success("Account aangemaakt! U kunt nu inloggen via het tabblad 'Inloggen'.")
+                    st.success("Account aangemaakt! Je kunt nu inloggen via het tabblad 'Inloggen'.")
                 except Exception:
                     st.error("Aanmaken mislukt. Mogelijk bestaat dit e-mailadres al.")
 
     # --- TAB 3: WACHTWOORD VERGETEN ---
     with tab_reset:
-        st.write("Vul uw e-mailadres in. U ontvangt een link om uw wachtwoord opnieuw in te stellen.")
+        st.write("Vul je e-mailadres in. Je ontvangt een link om jouw wachtwoord opnieuw in te stellen.")
         with st.form("reset_form"):
             reset_email = st.text_input("E-mailadres", key="reset_email")
             versturen   = st.form_submit_button("Stuur resetlink", width='stretch')
 
         if versturen:
             if not reset_email:
-                st.error("Vul uw e-mailadres in.")
+                st.error("Vul je e-mailadres in.")
             else:
                 try:
                     supabase.auth.reset_password_email(reset_email)
-                    st.success("Als dit e-mailadres bij ons bekend is, ontvangt u een resetlink.")
+                    st.success("Als dit e-mailadres bij ons bekend is, ontvang je een resetlink.")
                 except Exception:
                     st.error("Er is iets misgegaan. Probeer het later opnieuw.")
 

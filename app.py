@@ -311,7 +311,7 @@ inject_uploader_label(st.session_state.taal or "NL")
 # --- TAALSELECTIE SCHERM ---
 if st.session_state.taal is None:
     st.title("Belastingaangifte Vragenlijst / Tax Return Questionnaire")
-    st.write("Kies uw gewenste taal / Please select your preferred language:")
+    st.write("Kies je gewenste taal / Please select your preferred language:")
     
     col_nl, col_en = st.columns(2)
     with col_nl:
@@ -336,11 +336,13 @@ STAPPEN_TRANSLATION = {
         "Stap 3": "Fiscaal partner",
         "Stap 4": "Persoonlijke gegevens van fiscaal partner",
         "Stap 5": "Thuiswonende kinderen",
-        "Stap 6": "Waar u woonde",
+        "Stap 6": "Waar je woonde",
         "Stap 7": "Inkomen uit loondienst",
-        "Stap 7a": "Inkomen uit loondienst van uw partner",
+        "Stap 7a": "Inkomen uit loondienst van jouw partner",
+        "Stap 7b": "Inkomen uit uitkering / pensioen / lijfrente",
+        "Stap 7c": "Inkomen uit uitkering / pensioen / lijfrente van jouw partner",
         "Stap 8": "Inkomen uit ondernemerschap",
-        "Stap 8a": "Inkomen uit ondernemerschap van uw partner",
+        "Stap 8a": "Inkomen uit ondernemerschap van jouw partner",
         "Stap 9": "Eigen woonverblijf",
         "Stap 10": "Tweede eigen woonverblijf",
         "Stap 11": "Hypotheek",
@@ -362,6 +364,8 @@ STAPPEN_TRANSLATION = {
         "Stap 6": "Where you lived",
         "Stap 7": "Income from employment",
         "Stap 7a": "Partner's income from employment",
+        "Stap 7b": "Income from benefits / pension / annuity",
+        "Stap 7c": "Partner's income from benefits / pension / annuity",
         "Stap 8": "Income from entrepreneurship",
         "Stap 8a": "Partner's income from entrepreneurship",
         "Stap 9": "Primary residence",
@@ -387,12 +391,12 @@ UI_TRANSLATION = {
         "prev_btn": "Vorige",
         "next_btn": "Volgende",
         "submit_btn": "Antwoorden versturen",
-        "warning_empty": "Vul een geldig antwoord in voordat u verder gaat.",
+        "warning_empty": "Vul een geldig antwoord in voordat je verder gaat.",
         "success": "🎉 Bedankt voor het invullen van de vragenlijst!",
-        "success_sub": "Uw antwoorden zijn veilig opgeslagen.",
+        "success_sub": "Jouw antwoorden zijn veilig opgeslagen.",
         "restart_btn": "Einde, log uit!",
         "error_date": "Ongeldig formaat. Gebruik DD-MM-YYYY.",
-        "error_privacy": "⚠️ U dient akkoord te gaan met de privacyverklaring om verder te kunnen gaan.",
+        "error_privacy": "⚠️ Je dient akkoord te gaan met de privacyverklaring om verder te kunnen gaan.",
         "error_file": "Eerder geüpload bestand",
         "error_bsn": "Een BSN bestaat uit exact 9 cijfers.",
         "error_email": "Voer een geldig e-mailadres in.",
@@ -400,7 +404,8 @@ UI_TRANSLATION = {
         "error_kvk": "Een KvK-nummer bestaat uit exact 9 cijfers.",
         "table_col1" : "Naam",
         "table_col2" : "Bedrag/Aantal",
-        "string_field": "Uw antwoord:",
+        "string_field": "Jouw antwoord:",
+        "bsn_label": "Jouw 9-cijferige BSN:",
         "upload_messsage": "Kies een bestand...",
         "int_message": "Voer een cijfer in:",
         "saving_db": "Gegevens opslaan in database...",
@@ -432,6 +437,7 @@ UI_TRANSLATION = {
         "table_col1" : "Name",
         "table_col2" : "Amount/Quantity",
         "string_field": "Your answer:",
+        "bsn_label": "Your 9-digit BSN:",
         "upload_messsage": "Select a file...",
         "int_message": "Enter a number:",
         "saving_db": "Saving data to database...",
@@ -440,6 +446,9 @@ UI_TRANSLATION = {
         "add_row_btn": "Add a row"
     }
 }
+# Uitleg bij uploadvelden waar meerdere bestanden tegelijk kunnen
+_UPLOAD_TIP_NL = "Je kunt meerdere bestanden tegelijk selecteren door Ctrl ingedrukt te houden (Windows) of ⌘ Cmd (Mac) terwijl je de bestanden aanklikt. Of druk op het plus-teken dat verschijnt zodra je het eerste bestand hebt geüpload."
+_UPLOAD_TIP_EN = "You can select multiple files at once by holding Ctrl (Windows) or ⌘ Cmd (Mac) while clicking the files. Or press the plus sign that appears once you have uploaded the first file."
 QUESTIONS_TRANSLATION = {
     "NL": {
         "Q1_text": "Ik ga akkoord met verwerking van mijn gegevens t.b.v. de voorbereiding en indiening van mijn aangifte inkomstenbelasting door Klår Finance.",
@@ -450,157 +459,201 @@ QUESTIONS_TRANSLATION = {
         "Q4_text": "Telefoonnummer",
         "Q5_text": "E-mailadres",
         "Q6_text": "Wat is je geboortedatum?",
-        "Q7_text": "Wat is uw burgerservicenummer (BSN)?",
-        "Q8_text": "Bent u getrouwd of zit u in een geregistreerd partnerschap?",
-        "Q9_text": "Wat is uw trouwdatum of datum van geregistreerd partnerschap?",
-        "Q10_text": f"Heeft u in {JAAR} een fiscaal partner?",
+        "Q7_text": "Wat is jouw burgerservicenummer (BSN)?",
+        "Q7b_text": "Wat is jouw nationaliteit?",
+        "Q7c_text": "Wat is jouw adres?",
+        "Q8_text": "Ben je getrouwd of zit je in een geregistreerd partnerschap?",
+        "Q9_text": "Wat is jouw trouwdatum of datum van geregistreerd partnerschap?",
+        "Q10_text": f"Heb je in {JAAR} een fiscaal partner?",
         "Q10_toelicht": f"Je bent fiscale partners als je aan één van de volgende voorwaarden voldoet:\n- je bent getrouwd of geregistreerd partner;\n- je woont samen en hebt samen een kind;\n- Twijfel je? Kies 'Ja' als jullie ook in {JAAR - 1} als fiscale partners aangifte deden.",
-        "Q11_text": "Wat is de voornaam van uw partner?",
+        "Q11_text": "Wat is de voornaam van jouw partner?",
         "Q11b_text": "Tussenvoegsels partner",
-        "Q12_text": "Wat is de achternaam van uw partner?",
-        "Q13_text": "Wat is het telefoonnummer van uw partner?",
-        "Q14_text": "Wat is het e-mailadres van uw partner?",
-        "Q15_text": "Wat is het burgerservicenummer (BSN) van uw partner?",
-        "Q16_text": f"Had u in {JAAR} één of meerdere thuiswonende kinderen?",
-        "Q17_text": "Wat is de naam van uw jongste nog thuiswonende kind?",
-        "Q18_text": "Wat is de geboortedatum van uw jongste nog thuiswonende kind?",
-        "Q19_text": f"Waar woonde u in {JAAR}?",
+        "Q12_text": "Wat is de achternaam van jouw partner?",
+        "Q13_text": "Wat is het telefoonnummer van jouw partner?",
+        "Q14_text": "Wat is het e-mailadres van jouw partner?",
+        "Q15_text": "Wat is het burgerservicenummer (BSN) van jouw partner?",
+        "Q15b_text": "Wat is de nationaliteit van jouw partner?",
+        "Q16_text": f"Had je in {JAAR} één of meerdere thuiswonende kinderen?",
+        "Q17_text": "Wat is de naam van jouw jongste nog thuiswonende kind?",
+        "Q18_text": "Wat is de geboortedatum van jouw jongste nog thuiswonende kind?",
+        "Q19_text": f"Waar woonde je in {JAAR}?",
         "Q19_opt1": f"Heel {JAAR} in Nederland",
         "Q19_opt2": f"Een gedeelte van {JAAR} in Nederland en een gedeelte in het buitenland",
         "Q19_opt3": f"Heel {JAAR} in het buitenland",
         "Q20_text": f"Was er in {JAAR} sprake van immigratie (naar Nederland) of emigratie (uit Nederland)?",
         "Q20_opt1": "Immigratie",
         "Q20_opt2": "Emigratie",
-        "Q21_text": "Wat is de datum van uw fysieke aankomst in Nederland?",
-        "Q22_text": "Wat is de datum van uw registratie in Nederland?",
-        "Q22_toelicht": "Dit is de datum waarop u zich officieel heeft ingeschreven bij de gemeente in Nederland.",
-        "Q23_text": "Wat is het land van herkomst?",
-        "Q24_text": "Wat is de datum van uw fysieke vertrek uit Nederland?",
-        "Q26_text": "Wat is de datum van uw uitschrijving in Nederland?",
-        "Q26_toelicht": "Dit is de datum waarop u zich officieel heeft uitgeschreven bij de gemeente in Nederland.",
+        "Q21_text": "Wat is de datum van jouw fysieke aankomst in Nederland?",
+        "Q22_text": "Wat is de datum van jouw registratie in Nederland?",
+        "Q22_toelicht": "Dit is de datum waarop je je officieel hebt ingeschreven bij de gemeente in Nederland.",
+        "Q23_text": "Van welk land was je inwoner voordat je naar Nederland kwam?",
+        "Q24_text": "Wat is de datum van jouw fysieke vertrek uit Nederland?",
+        "Q26_text": "Wat is de datum van jouw uitschrijving uit Nederland?",
+        "Q26_toelicht": "Dit is de datum waarop je je officieel hebt uitgeschreven bij de gemeente in Nederland.",
         "Q27_text": "Wat is het land van bestemming?",
-        "Q28_text": f"Had u in {JAAR} inkomsten uit loondienst?",
-        "Q29_text": f"Bij hoeveel verschillende werkgevers had u in {JAAR} een dienstverband?",
-        "Q30_text": f"Upload de jaaropgave van uw werkgever(s) voor {JAAR}.",
+        "Q28_text": f"Had je in {JAAR} inkomsten uit loondienst?",
+        "Q29_text": f"Bij hoeveel verschillende werkgevers had je in {JAAR} een dienstverband?",
+        "Q30_text": f"Upload de jaaropgave van jouw werkgever(s) voor {JAAR}.",
         "Q31_text": f"Was in {JAAR} de 30%-regeling van toepassing?",
         "Q31_toelicht": "De 30%-regeling is een fiscale regeling voor kennismigranten.",
         "Q32_text": "Upload de beschikking 30%-regeling.",
-        "Q33_text": f"Was u in {JAAR} zelfstandig ondernemer in een eenmanszaak, vof of maatschap?",
-        "Q33_toelicht": "Heeft u een BV, beantwoord deze vraag dan met 'Nee'.",
-        "Q34_text": "Wat is de rechtsvorm van uw onderneming?",
+        # Stap 7b — uitkering / pensioen / lijfrente
+        "Q32b_text": f"Had je in {JAAR} inkomsten uit uitkering / pensioen / lijfrente?",
+        "Q32c_text": f"Upload de jaaropgaven {JAAR} van al deze inkomstenbronnen.",
+        "Q32c_toelicht": f"Upload hier de jaaropgaven {JAAR} van al jouw uitkeringen, pensioenen en lijfrentes. {_UPLOAD_TIP_NL}",
+        "Q33_text": f"Was je in {JAAR} zelfstandig ondernemer in een eenmanszaak, vof of maatschap?",
+        "Q33_toelicht": "Heb je een BV, beantwoord deze vraag dan met 'Nee'.",
+        "Q34_text": "Wat is de rechtsvorm van jouw onderneming?",
         "Q34_opts": ["Eenmanszaak", "VOF", "Maatschap", "Overige rechtsvorm"],
-        "Q35_text": "Wat is het KvK-nummer van uw onderneming?",
-        "Q36_text": "In welk boekhoudprogramma houdt u de administratie bij?",
-        "Q37_text": f"Upload de winst- en verliesrekening {JAAR}.",
-        "Q38_text": f"Heeft u in {JAAR} méér dan 1.225 uur besteed aan uw onderneming?",
+        "Q35_text": "Wat is het KvK-nummer van jouw onderneming?",
+        "Q36_text": "In welk boekhoudprogramma houd je de administratie bij?",
+        "Q37_text": f"Upload de balans en de winst- en verliesrekening {JAAR}.",
+        "Q37_toelicht": _UPLOAD_TIP_NL,
+        "Q37b_text": f"Upload de ingediende aangifte IB {JAAR - 1} inclusief balans en winst- en verliesrekening.",
+        "Q37b_toelicht": "Let op: dit is enkel van toepassing indien deze niet door Klår Finance is verzorgd.",
+        "Q38_text": f"Heb je in {JAAR} méér dan 1.225 uur besteed aan jouw onderneming?",
         "Q38_opts": ["Ja", "Nee", "Ik weet het niet zeker"],
         # Stap 7a — loondienst partner
-        "Q28p_text": f"Had uw partner in {JAAR} inkomsten uit loondienst?",
-        "Q29p_text": f"Bij hoeveel verschillende werkgevers had uw partner in {JAAR} een dienstverband?",
-        "Q30p_text": f"Upload de jaaropgave van de werkgever(s) van uw partner voor {JAAR}.",
-        "Q31p_text": f"Was in {JAAR} de 30%-regeling van toepassing op uw partner?",
+        "Q28p_text": f"Had jouw partner in {JAAR} inkomsten uit loondienst?",
+        "Q29p_text": f"Bij hoeveel verschillende werkgevers had jouw partner in {JAAR} een dienstverband?",
+        "Q30p_text": f"Upload de jaaropgave van de werkgever(s) van jouw partner voor {JAAR}.",
+        "Q31p_text": f"Was in {JAAR} de 30%-regeling van toepassing op jouw partner?",
         "Q31p_toelicht": "De 30%-regeling is een fiscale regeling voor kennismigranten.",
-        "Q32p_text": "Upload de beschikking 30%-regeling van uw partner.",
+        "Q32p_text": "Upload de beschikking 30%-regeling van jouw partner.",
+        # Stap 7c — uitkering / pensioen / lijfrente partner
+        "Q32bp_text": f"Had jouw partner in {JAAR} inkomsten uit uitkering / pensioen / lijfrente?",
+        "Q32cp_text": f"Upload de jaaropgaven {JAAR} van al deze inkomstenbronnen van jouw partner.",
+        "Q32cp_toelicht": f"Upload hier de jaaropgaven {JAAR} van alle uitkeringen, pensioenen en lijfrentes van jouw partner. {_UPLOAD_TIP_NL}",
         # Stap 8a — ondernemerschap partner
-        "Q33p_text": f"Was uw partner in {JAAR} zelfstandig ondernemer in een eenmanszaak, vof of maatschap?",
-        "Q33p_toelicht": "Heeft uw partner een BV, beantwoord deze vraag dan met 'Nee'.",
-        "Q34p_text": "Wat is de rechtsvorm van de onderneming van uw partner?",
-        "Q35p_text": "Wat is het KvK-nummer van de onderneming van uw partner?",
-        "Q36p_text": "In welk boekhoudprogramma houdt uw partner de administratie bij?",
-        "Q37p_text": f"Upload de winst- en verliesrekening van uw partner voor {JAAR}.",
-        "Q38p_text": f"Heeft uw partner in {JAAR} méér dan 1.225 uur besteed aan zijn/haar onderneming?",
+        "Q33p_text": f"Was jouw partner in {JAAR} zelfstandig ondernemer in een eenmanszaak, vof of maatschap?",
+        "Q33p_toelicht": "Heeft jouw partner een BV, beantwoord deze vraag dan met 'Nee'.",
+        "Q34p_text": "Wat is de rechtsvorm van de onderneming van jouw partner?",
+        "Q35p_text": "Wat is het KvK-nummer van de onderneming van jouw partner?",
+        "Q36p_text": "In welk boekhoudprogramma houdt jouw partner de administratie bij?",
+        "Q37p_text": f"Upload de balans en de winst- en verliesrekening {JAAR} van jouw partner.",
+        "Q37bp_text": f"Upload de ingediende aangifte IB {JAAR - 1} van jouw partner inclusief balans en winst- en verliesrekening.",
+        "Q38p_text": f"Heeft jouw partner in {JAAR} méér dan 1.225 uur besteed aan zijn/haar onderneming?",
         # Partner melding
-        "partner_melding": "⚠️ Let op! Onderstaande vragen betreffen zowel u als uw partner.",
-        "Q39_text": f"Had u in {JAAR} een eigen woning (hoofdverblijf)?",
-        "Q40_text": "Is deze woning alleen van u?",
+        "partner_melding": "⚠️ Let op! Onderstaande vragen betreffen zowel jou als jouw partner.",
+        "Q39_text": f"Had je in {JAAR} een eigen woning (hoofdverblijf)?",
+        "Q40_text": "Is deze woning alleen van jou?",
         "Q40_opts": ["Ja, ik ben de enige eigenaar", "Nee, de woning is eigendom van mij en mijn fiscaal partner (50%-50%)", "Nee, er is nog een andere eigenaar (niet mijn partner)."],
-        "Q41_text": "Wie is er nog meer eigenaar van uw eigen woning?",
-        "Q42_text": "Wat is het adres van uw eigen woning?",
-        "Q43_text": "Heeft u een hypotheek op deze eigen woning?",
-        "Q44_text": f"Upload de jaaropgave van uw hypotheekverstrekker voor {JAAR}.",
-        "Q45_text": f"Heeft u in {JAAR} deze woning gekocht of verkocht?",
+        "Q41_text": "Wie is er nog meer eigenaar van jouw eigen woning?",
+        "Q42_text": "Wat is het adres van jouw eigen woning?",
+        "Q43_text": "Heb je een hypotheek op deze eigen woning?",
+        "Q44_text": f"Upload de jaaropgave van jouw hypotheekverstrekker voor {JAAR}.",
+        "Q44b_text": "Betaal je jaarlijks erfpacht voor deze woning?",
+        "Q44c_text": f"Upload het document van de erfpachtcanon {JAAR}.",
+        "Q45_text": f"Heb je in {JAAR} deze woning gekocht of verkocht?",
         "Q45_opts": ["Ja, gekocht", "Ja, verkocht", "Nee"],
-        "Q46_text": "Wat is de datum van de aankoop van uw woning?",
+        "Q46_text": "Wat is de datum van de aankoop van jouw woning?",
+        "Q46b_text": "Vanaf welke datum woon je in deze woning?",
         "Q47_text": "Upload de notarisafrekening van de aankoop.",
-        "Q48_text": "Wat is de datum van de verkoop van uw woning?",
+        "Q47b_text": "Upload de taxatiefactuur inzake de aankoop van de woning.",
+        "Q48_text": "Wat is de datum van de verkoop van jouw woning?",
+        "Q48b_text": "Vanaf welke datum woon je niet meer in deze woning?",
         "Q49_text": "Upload de notarisafrekening van de verkoop.",
-        "Q50_text": f"Had u in {JAAR} nóg een eigen woning (hoofdverblijf)?",
-        "Q51_text": "Is deze woning alleen van u?",
+        "Q49b_text": "Upload de taxatiefactuur inzake de verkoop van de woning.",
+        "taxatie_toelicht": "Alleen van toepassing als er een taxatie is uitgevoerd.",
+        "Q50_text": f"Had je in {JAAR} nóg een eigen woning (hoofdverblijf)?",
+        "Q51_text": "Is deze woning alleen van jou?",
         "Q51_opts": ["Ja, ik ben de enige eigenaar", "Nee, de woning is eigendom van mij en mijn fiscaal partner (50%-50%)", "Nee, er is nog een andere eigenaar (niet mijn partner)."],
         "Q52_text": "Wie is er nog meer eigenaar?",
         "Q53_text": "Wat is het adres van deze woning?",
-        "Q54_text": "Heeft u een hypotheek op deze eigen woning?",
-        "Q55_text": f"Upload de jaaropgave van uw hypotheekverstrekker voor {JAAR}.",
-        "Q56_text": f"Heeft u in {JAAR} deze woning gekocht of verkocht?",
+        "Q54_text": "Heb je een hypotheek op deze eigen woning?",
+        "Q55_text": f"Upload de jaaropgave van jouw hypotheekverstrekker voor {JAAR}.",
+        "Q56_text": f"Heb je in {JAAR} deze woning gekocht of verkocht?",
         "Q56_opts": ["Ja, gekocht", "Ja, verkocht", "Nee"],
         "Q57_text": "Wat is de datum van de aankoop?",
+        "Q57b_text": "Vanaf welke datum woon je in deze woning?",
         "Q58_text": "Upload de notarisafrekening van de aankoop.",
         "Q59_text": f"Upload de factuur van de taxatie van de nieuwe woning voor {JAAR}.",
+        "Q59b_text": "Wat is de datum van verkoop?",
         "Q60_text": "Vanaf welke datum woon je niet meer in deze woning?",
         "Q61_text": "Upload de notarisafrekening van de verkoop.",
         "Q62_text": "Upload de factuur van de taxatie van de oude woning.",
-        "Q63_text": f"Heeft u in {JAAR} uw hypotheek overgesloten?",
+        "Q63_text": f"Heb je in {JAAR} jouw hypotheek overgesloten?",
         "Q64_text": "Upload de notarisafrekening van de oversluiting.",
-        "Q65_text": f"Had u in {JAAR} een aanmerkelijk belang in een BV/NV?",
+        "Q65_text": f"Had je in {JAAR} een aanmerkelijk belang in een BV/NV?",
         "Q65_toelichting": "Je hebt een aanmerkelijk belang in een bv of nv wanneer je direct of indirect minimaal 5% bezit van het geplaatste aandelenkapitaal.",
-        "Q66_text": f"Wat is de naam van deze BV/NV en hoeveel aandelen bezat u?",
+        "Q66_text": f"Wat is de naam van deze BV/NV en hoeveel aandelen bezat je op 1-1-{JAAR}?",
         "Q66_col1": "Naam",
         "Q66_col2": "Bedrag/Aantal",
-        "Q67_text": f"Heeft u in {JAAR} aandelen in deze BV/NV verkocht of gekocht?",
-        "Q68_text": "Hoeveel aandelen heeft u gekocht/verkocht?",
+        "Q67_text": f"Heb je in {JAAR} aandelen in deze BV/NV verkocht of gekocht?",
+        "Q68_text": "Hoeveel aandelen heb je gekocht/verkocht?",
         "Q68_col2": "Gekocht/verkocht",
-        "Q68_toelichting": f"Voer indien u in {JAAR} aandelen gekocht heeft een positief getal in achter de betreffende entiteit en bij verkoop een negatief bedrag. Voer 0 in wanneer er geen mutaties waren.",
-        "Q69_text": f"Heeft u in {JAAR} dividend ontvangen van deze BV/NV?",
+        "Q68_toelichting": f"Voer indien je in {JAAR} aandelen gekocht hebt een positief getal in achter de betreffende entiteit en bij verkoop een negatief getal. Voer 0 in wanneer er geen mutaties waren.",
+        "Q68b_text": "Wat was de aankoopprijs/verkoopprijs per aandeel?",
+        "Q68b_col2": "Prijs per aandeel (€)",
+        "Q68b_toelichting": "Voer achter de betreffende entiteit de aankoop- of verkoopprijs per aandeel in. Voer 0 in wanneer er geen mutaties waren.",
+        "Q69_text": f"Heb je in {JAAR} dividend ontvangen van deze BV/NV?",
         "Q70_text": f"Hoeveel was het bruto ontvangen dividend in {JAAR}?",
         "Q70_col2": "Dividend (€)",
         "Q70_toelichting": "Voer achter de betreffende entiteit het ontvangen dividend in en voer 0 in wanneer er geen dividend is uitgekeerd.",
-        "Q71_text": f"Had u in {JAAR} Nederlandse bankrekeningen en/of Nederlandse beleggingen?",
-        "Q72_text": f"Upload de jaaroverzichten {JAAR} van al uw Nederlandse rekeningen.",
-        "Q72_toelicht": "Upload hier de jaaroverzichten van al uw Nederlandse bankrekeningen en beleggingsrekeningen. U kunt meerdere bestanden tegelijk selecteren door Ctrl ingedrukt te houden (Windows) of ⌘ Cmd (Mac) terwijl u de bestanden aanklikt. Of druk op het plus-teken wat verschijnt zodra u het eerste bestand heeft geüpload.",
-        "Q73_text": f"Bezat u in {JAAR} crypto en/of vordering(en) zoals een lening aan derden?",
-        "Q73b_text": "Vermeld hieronder de omschrijving en waarde per bezitting.",
+        "Q70b_text": "Is er door de BV/NV al dividendbelasting afgedragen?",
+        "Q70c_text": "Hoeveel dividendbelasting is er afgedragen?",
+        "Q70c_col2": "Dividendbelasting (€)",
+        "Q70c_toelichting": "Voer achter de betreffende entiteit de afgedragen dividendbelasting in en voer 0 in wanneer er geen dividendbelasting is afgedragen.",
+        "Q71_text": f"Had je (en/of jouw fiscaal partner) in {JAAR} Nederlandse bankrekeningen en/of Nederlandse beleggingen?",
+        "Q72_text": f"Upload de jaaroverzichten {JAAR} van alle Nederlandse rekeningen.",
+        "Q72_toelicht": f"Upload hier de jaaroverzichten van alle Nederlandse bankrekeningen en beleggingsrekeningen van jou (en jouw fiscaal partner). Bankrekeningen/beleggingen op naam van een minderjarig kind vallen hier ook onder. {_UPLOAD_TIP_NL}",
+        "Q73_text": f"Bezat je (en/of jouw fiscaal partner) in {JAAR} crypto en/of vordering(en) zoals een lening aan derden?",
+        "Q73b_text": f"Vermeld hieronder de omschrijving en waarde per bezitting per 1-1-{JAAR} en 31-12-{JAAR}.",
         "Q73b_col1": "Omschrijving",
         "Q73b_col2": f"Waarde 1-1-{JAAR} (€)",
         "Q73b_col3": f"Waarde 31-12-{JAAR} (€)",
-        "Q74_text": f"Had u in {JAAR} overig onroerend goed in Nederland (niet de eigen woning)?",
+        "Q74_text": f"Had je (en/of jouw fiscaal partner) in {JAAR} overig onroerend goed in Nederland (niet de eigen woning)?",
         "Q75_text": "Wat is het adres van dit onroerend goed?",
         "Q76_text": f"Werd dit overig onroerend goed in {JAAR} verhuurd?",
         "Q76_opts": ["Ja, vaste verhuur", "Ja, vakantieverhuur", "Nee"],
         "Q77_text": "Is het onroerend goed verhuurd aan een familielid?",
-        "Q79_text": "Betaalt u jaarlijks erfpacht?",
+        "Q79_text": "Betaal je jaarlijks erfpacht?",
         "Q80_text": f"Wat was de erfpachtcanon in {JAAR}?",
         "Q81_text": "Kan dit onroerend goed afzonderlijk worden verkocht?",
-        "Q82_text": f"Had u Nederlandse schulden in {JAAR}?",
-        "Q83_text": f"Upload jaaropgaven {JAAR} van uw Nederlandse schulden.",
-        "Q83_toelicht": "Upload hier de jaaropgaven van al uw Nederlandse schulden, zoals een studieschuld, persoonlijke lening of krediet. U kunt meerdere bestanden tegelijk selecteren door Ctrl ingedrukt te houden (Windows) of ⌘ Cmd (Mac) terwijl u de bestanden aanklikt. Of druk op het plus-teken wat verschijnt zodra u het eerste bestand heeft geüpload.",
-        "Q84_text": f"Had u in {JAAR} buitenlandse bankrekeningen en/of buitenlandse beleggingen?",
-        "Q85_text": f"Upload de jaaroverzichten {JAAR} van uw buitenlandse rekeningen.",
-        "Q85_toelicht": "Upload hier de jaaroverzichten van al uw buitenlandse bankrekeningen en beleggingsrekeningen. U kunt meerdere bestanden tegelijk selecteren door Ctrl ingedrukt te houden (Windows) of ⌘ Cmd (Mac) terwijl u de bestanden aanklikt. Of druk op het plus-teken wat verschijnt zodra u het eerste bestand heeft geüpload.",
-        "Q86_text": f"Had u in {JAAR} onroerend goed in het buitenland?",
+        "Q81b_text": "Rust er een hypotheek of andere schuld op dit onroerend goed?",
+        "Q81c_text": f"Upload de jaaropgave {JAAR} van deze hypotheek/schuld.",
+        "Q82_text": f"Had je (en/of jouw fiscaal partner) Nederlandse schulden in {JAAR}?",
+        "Q83_text": f"Upload de jaaropgaven {JAAR} van alle Nederlandse schulden.",
+        "Q83_toelicht": f"Upload hier de jaaropgaven van alle Nederlandse schulden van jou (en/of jouw fiscaal partner), zoals een studieschuld, persoonlijke lening of krediet. {_UPLOAD_TIP_NL}",
+        "Q84_text": f"Had je (en/of jouw fiscaal partner) in {JAAR} buitenlandse bankrekeningen en/of buitenlandse beleggingen?",
+        "Q85_text": f"Upload de jaaroverzichten {JAAR} van alle buitenlandse rekeningen.",
+        "Q85_toelicht": f"Upload hier de jaaroverzichten van alle buitenlandse bankrekeningen en beleggingsrekeningen van jou (en/of jouw fiscaal partner). {_UPLOAD_TIP_NL}",
+        # Stap 16 — buitenlands onroerend goed (herhaalt per object)
+        "Q86_text": f"Had je (en/of jouw fiscaal partner) in {JAAR} onroerend goed in het buitenland?",
+        "Q86_meer_text": f"Had je (en/of jouw fiscaal partner) in {JAAR} nog meer onroerend goed in het buitenland?",
+        "og_object": " (onroerend goed {k})",
         "Q87_text": "Wat is het adres?",
         "Q88_text": f"Wat was de waarde op 1-1-{JAAR}?",
-        "Q89_text": "Is er onroerend goed gekocht of verkocht?",
-        "Q90_text": f"Had u buitenlandse schulden in {JAAR}?",
-        "Q91_text": "Omschrijf de buitenlandse schulden.",
-        "Q92_text": f"Had u buitenlands inkomen in {JAAR}?",
+        "Q88b_text": "Is dit onroerend goed volledig eigendom van jou (en/of jouw fiscaal partner)?",
+        "Q88c_text": "Voor hoeveel procent ben je (en/of jouw fiscaal partner) eigenaar?",
+        "Q86b_text": "Rust er een hypotheek of andere schuld op dit onroerend goed?",
+        "Q86c_text": f"Upload de jaaropgave {JAAR} van deze hypotheek/schuld.",
+        "Q89_text": f"Is dit onroerend goed gekocht of verkocht in {JAAR}?",
+        "Q89b_text": "Op welke datum heeft de aankoop/verkoop plaatsgevonden?",
+        "Q89c_text": "Tegen welk bedrag is het onroerend goed gekocht/verkocht?",
+        "Q90_text": f"Had je (en/of jouw fiscaal partner) buitenlandse schulden in {JAAR}?",
+        "Q91_text": f"Omschrijf de buitenlandse schulden en vermeld de hoogte op 1-1-{JAAR} en 31-12-{JAAR}.",
+        "Q91_col2": f"Hoogte 1-1-{JAAR} (€)",
+        "Q91_col3": f"Hoogte 31-12-{JAAR} (€)",
+        "Q92_text": f"Had je (en/of jouw fiscaal partner) buitenlands inkomen in {JAAR}?",
         "Q93_text": "Wat was de bron?",
         "Q93_opts": ["Inkomen uit loondienst", "Inkomen als zelfstandige", "Pensioen", "Anders"],
         "Q94_text": "Is er belasting ingehouden?",
         "Q94_opts": ["Ja", "Nee", "Weet ik niet zeker"],
-        "Q95_text": "Upload bewijs buitenlands inkomen.",
-        "Q95_toelicht": "Upload hier het bewijs van uw buitenlandse inkomsten, zoals een jaaropgave of salarisstrook. U kunt meerdere bestanden tegelijk selecteren door Ctrl ingedrukt te houden (Windows) of ⌘ Cmd (Mac) terwijl u de bestanden aanklikt. Of druk op het plus-teken wat verschijnt zodra u het eerste bestand heeft geüpload.",
-        "Q96_text": f"Heeft u meer dan EUR 60 gedoneerd aan goede doelen in {JAAR}?",
+        "Q95_text": "Upload hier het bewijs van alle buitenlandse inkomsten van jou (en/of jouw fiscaal partner).",
+        "Q95_toelicht": f"Bijvoorbeeld een jaaropgave of salarisstrook. {_UPLOAD_TIP_NL}",
+        "Q96_text": f"Heb je (en/of jouw fiscaal partner) meer dan EUR 60 gedoneerd aan goede doelen in {JAAR}?",
         "Q97_text": "Vermeld per goed doel het bedrag.",
-        "Q98_text": f"Heeft u in {JAAR} buitengewone zorgkosten betaald?",
+        "Q98_text": f"Heb je (en/of jouw fiscaal partner) in {JAAR} buitengewone zorgkosten betaald?",
         "Q99_text": "Vermeld per soort zorgkosten het bedrag.",
-        "Q100_text": "Volgt u een dieet op voorschrift?",
+        "Q100_text": "Volg je (en/of jouw fiscaal partner) een dieet op doktersvoorschrift?",
         "Q101_text": "Om welk dieet gaat het?",
-        "Q102_text": f"Ontving u in {JAAR} een voorlopige aanslag?",
+        "Q102_text": f"Ontving je (en/of jouw fiscaal partner) in {JAAR} een voorlopige aanslag?",
         "Q103_text": "Upload kopie voorlopige aanslag.",
-        "Q104_text": "Wilt u nog aanvullende documenten uploaden?",
+        "Q104_text": "Wil je nog aanvullende documenten uploaden?",
         "Q105_text": "Upload hier aanvullende documenten.",
-        "Q106_text": "Heeft u nog opmerkingen of vragen?",
-        "Q107_text": "Vermeld uw opmerkingen.",
+        "Q106_text": "Heb je nog opmerkingen of vragen?",
+        "Q107_text": "Vermeld jouw opmerkingen.",
         "yes": "Ja",
         "no": "Nee"
     },
@@ -614,6 +667,8 @@ QUESTIONS_TRANSLATION = {
         "Q5_text": "Email address",
         "Q6_text": "What is your date of birth?",
         "Q7_text": "What is your citizen service number (BSN)?",
+        "Q7b_text": "What is your nationality?",
+        "Q7c_text": "What is your address?",
         "Q8_text": "Are you married or in a registered partnership?",
         "Q9_text": "What is the date of your marriage or registered partnership?",
         "Q10_text": f"Did you have a tax partner in {JAAR}?",
@@ -624,6 +679,7 @@ QUESTIONS_TRANSLATION = {
         "Q13_text": "What is your partner's phone number?",
         "Q14_text": "What is your partner's email address?",
         "Q15_text": "What is your partner's citizen service number (BSN)?",
+        "Q15b_text": "What is your partner's nationality?",
         "Q16_text": f"Did you have one or more children living at home in {JAAR}?",
         "Q17_text": "What is the name of your youngest child living at home?",
         "Q18_text": "What is the date of birth of your youngest child living at home?",
@@ -637,9 +693,9 @@ QUESTIONS_TRANSLATION = {
         "Q21_text": "What is the date of your physical arrival in the Netherlands?",
         "Q22_text": "What is the date of your registration in the Netherlands?",
         "Q22_toelicht": "This is the date you officially registered with the municipality in the Netherlands.",
-        "Q23_text": "What is the country of origin?",
+        "Q23_text": "Which country were you a resident of before you came to the Netherlands?",
         "Q24_text": "What is the date of your physical departure from the Netherlands?",
-        "Q26_text": "What is the date of your deregistration in the Netherlands?",
+        "Q26_text": "What is the date of your deregistration from the Netherlands?",
         "Q26_toelicht": "This is the date you officially deregistered from the municipality in the Netherlands.",
         "Q27_text": "What is the country of destination?",
         "Q28_text": f"Did you have income from employment in {JAAR}?",
@@ -648,13 +704,20 @@ QUESTIONS_TRANSLATION = {
         "Q31_text": f"Was the 30% ruling applicable in {JAAR}?",
         "Q31_toelicht": "The 30% ruling is a tax advantage for highly skilled migrants.",
         "Q32_text": "Upload the 30% ruling decision letter.",
+        # Stap 7b — benefits / pension / annuity
+        "Q32b_text": f"Did you have income from benefits / pension / annuity in {JAAR}?",
+        "Q32c_text": f"Upload the {JAAR} annual statements of all these income sources.",
+        "Q32c_toelicht": f"Upload the {JAAR} annual statements of all your benefits, pensions and annuities. {_UPLOAD_TIP_EN}",
         "Q33_text": f"Were you self-employed in a sole proprietorship, VOF, or partnership in {JAAR}?",
         "Q33_toelicht": "If you own a BV, please answer 'No'.",
         "Q34_text": "What is the legal form of your business?",
         "Q34_opts": ["Sole proprietorship (Eenmanszaak)", "VOF", "Partnership (Maatschap)", "Other legal form"],
         "Q35_text": "What is the Chamber of Commerce (KvK) number of your business?",
         "Q36_text": "Which accounting software do you use?",
-        "Q37_text": f"Upload the profit and loss statement for {JAAR}.",
+        "Q37_text": f"Upload the balance sheet and the profit and loss statement for {JAAR}.",
+        "Q37_toelicht": _UPLOAD_TIP_EN,
+        "Q37b_text": f"Upload the filed {JAAR - 1} income tax return, including balance sheet and profit and loss statement.",
+        "Q37b_toelicht": "Note: this only applies if the return was not prepared by Klår Finance.",
         "Q38_text": f"Did you spend more than 1,225 hours on your business in {JAAR}?",
         "Q38_opts": ["Yes", "No", "I am not entirely sure"],
         # Stap 7a — loondienst partner
@@ -664,13 +727,18 @@ QUESTIONS_TRANSLATION = {
         "Q31p_text": f"Was the 30% ruling applicable to your partner in {JAAR}?",
         "Q31p_toelicht": "The 30% ruling is a tax advantage for highly skilled migrants.",
         "Q32p_text": "Upload the 30% ruling decision letter of your partner.",
+        # Stap 7c — benefits / pension / annuity partner
+        "Q32bp_text": f"Did your partner have income from benefits / pension / annuity in {JAAR}?",
+        "Q32cp_text": f"Upload the {JAAR} annual statements of all these income sources of your partner.",
+        "Q32cp_toelicht": f"Upload the {JAAR} annual statements of all benefits, pensions and annuities of your partner. {_UPLOAD_TIP_EN}",
         # Stap 8a — ondernemerschap partner
         "Q33p_text": f"Was your partner self-employed in a sole proprietorship, VOF, or partnership in {JAAR}?",
         "Q33p_toelicht": "If your partner owns a BV, please answer 'No'.",
         "Q34p_text": "What is the legal form of your partner's business?",
         "Q35p_text": "What is the Chamber of Commerce (KvK) number of your partner's business?",
         "Q36p_text": "Which accounting software does your partner use?",
-        "Q37p_text": f"Upload the profit and loss statement of your partner for {JAAR}.",
+        "Q37p_text": f"Upload the balance sheet and the profit and loss statement of your partner for {JAAR}.",
+        "Q37bp_text": f"Upload your partner's filed {JAAR - 1} income tax return, including balance sheet and profit and loss statement.",
         "Q38p_text": f"Did your partner spend more than 1,225 hours on his/her business in {JAAR}?",
         # Partner melding
         "partner_melding": "⚠️ Note: The questions below apply to both you and your partner.",
@@ -681,12 +749,19 @@ QUESTIONS_TRANSLATION = {
         "Q42_text": "What is the address of your primary residence?",
         "Q43_text": "Do you have a mortgage on this primary residence?",
         "Q44_text": f"Upload the annual mortgage statement from your lender for {JAAR}.",
+        "Q44b_text": "Do you pay ground rent (erfpacht) annually for this property?",
+        "Q44c_text": f"Upload the ground rent (erfpachtcanon) document for {JAAR}.",
         "Q45_text": f"Did you buy or sell this property in {JAAR}?",
         "Q45_opts": ["Yes, bought", "Yes, sold", "No"],
         "Q46_text": "What is the date of purchase of your home?",
+        "Q46b_text": "As of what date do you live in this property?",
         "Q47_text": "Upload the notary settlement statement of the purchase.",
+        "Q47b_text": "Upload the valuation/appraisal invoice for the purchase of the property.",
         "Q48_text": "What is the date of sale of your home?",
+        "Q48b_text": "As of what date did you stop living in this property?",
         "Q49_text": "Upload the notary settlement statement of the sale.",
+        "Q49b_text": "Upload the valuation/appraisal invoice for the sale of the property.",
+        "taxatie_toelicht": "Only applicable if a valuation was carried out.",
         "Q50_text": f"Did you own another home (primary residence) in {JAAR}?",
         "Q51_text": "Is this property solely owned by you?",
         "Q51_opts": ["Yes, I am the sole owner", "No, the property is jointly owned by me and my tax partner (50%-50%)", "No, there is another owner (not my partner)."],
@@ -697,8 +772,10 @@ QUESTIONS_TRANSLATION = {
         "Q56_text": f"Did you buy or sell this property in {JAAR}?",
         "Q56_opts": ["Yes, bought", "Yes, sold", "No"],
         "Q57_text": "What is the date of purchase?",
+        "Q57b_text": "As of what date do you live in this property?",
         "Q58_text": "Upload the notary settlement statement of the purchase.",
         "Q59_text": f"Upload the valuation/appraisal invoice of the new property for {JAAR}.",
+        "Q59b_text": "What is the date of sale?",
         "Q60_text": "As of what date did you stop living in this property?",
         "Q61_text": "Upload the notary settlement statement of the sale.",
         "Q62_text": "Upload the valuation/appraisal invoice of the old property.",
@@ -706,26 +783,33 @@ QUESTIONS_TRANSLATION = {
         "Q64_text": "Upload the notary settlement statement of the refinancing.",
         "Q65_text": f"Did you hold a substantial interest (aanmerkelijk belang) in a BV/NV in {JAAR}?",
         "Q65_toelichting": "You hold a substantial interest (aanmerkelijk belang) in a BV or NV when you directly or indirectly own at least 5% of the issued share capital.",
-        "Q66_text": "What is the name of this BV/NV and how many shares did you hold?",
+        "Q66_text": f"What is the name of this BV/NV and how many shares did you hold on 1-1-{JAAR}?",
         "Q66_col1": "Name",
         "Q66_col2": "Amount/Quantity",
         "Q67_text": f"Did you buy or sell shares in this BV/NV in {JAAR}?",
         "Q68_text": "How many shares did you buy/sell?",
         "Q68_col2": "Bought/sold",
         "Q68_toelichting": f"For shares bought in {JAAR}, enter a positive number next to the relevant entity; for shares sold, enter a negative number. Enter 0 if there were no changes.",
+        "Q68b_text": "What was the purchase/sale price per share?",
+        "Q68b_col2": "Price per share (€)",
+        "Q68b_toelichting": "Enter the purchase or sale price per share next to the relevant entity. Enter 0 if there were no changes.",
         "Q69_text": f"Did you receive dividends from this BV/NV in {JAAR}?",
         "Q70_text": f"What was the gross dividend received in {JAAR}?",
         "Q70_col2": "Dividend (€)",
         "Q70_toelichting": "Enter the dividend received for each relevant entity, and enter 0 if no dividend was paid out.",
-        "Q71_text": f"Did you have Dutch bank accounts and/or Dutch investments in {JAAR}?",
-        "Q72_text": f"Upload the annual statements for {JAAR} of all your Dutch accounts.",
-        "Q72_toelicht": "Upload the annual statements of all your Dutch bank accounts and investment accounts. You can select multiple files at once by holding Ctrl (Windows) or ⌘ Cmd (Mac) while clicking the files. Or press the plus sign that appears once you have uploaded the first file.",
-        "Q73_text": f"Did you own crypto and/or receivables (such as a loan to third parties) in {JAAR}?",
-        "Q73b_text": "Please list the description and value of each asset below.",
+        "Q70b_text": "Has the BV/NV already paid dividend tax?",
+        "Q70c_text": "How much dividend tax was paid?",
+        "Q70c_col2": "Dividend tax (€)",
+        "Q70c_toelichting": "Enter the dividend tax paid for each relevant entity, and enter 0 if no dividend tax was paid.",
+        "Q71_text": f"Did you (and/or your tax partner) have Dutch bank accounts and/or Dutch investments in {JAAR}?",
+        "Q72_text": f"Upload the annual statements for {JAAR} of all Dutch accounts.",
+        "Q72_toelicht": f"Upload the annual statements of all Dutch bank accounts and investment accounts of you (and your tax partner). Bank accounts/investments in the name of a minor child are also included. {_UPLOAD_TIP_EN}",
+        "Q73_text": f"Did you (and/or your tax partner) own crypto and/or receivables (such as a loan to third parties) in {JAAR}?",
+        "Q73b_text": f"Please list the description and value of each asset below as of 1-1-{JAAR} and 31-12-{JAAR}.",
         "Q73b_col1": "Description",
         "Q73b_col2": f"Value 1-1-{JAAR} (€)",
         "Q73b_col3": f"Value 31-12-{JAAR} (€)",
-        "Q74_text": f"Did you own other real estate in the Netherlands (not the primary residence) in {JAAR}?",
+        "Q74_text": f"Did you (and/or your tax partner) own other real estate in the Netherlands (not the primary residence) in {JAAR}?",
         "Q75_text": "What is the address of this real estate?",
         "Q76_text": f"Was this other real estate rented out in {JAAR}?",
         "Q76_opts": ["Yes, long-term rental", "Yes, holiday rental", "No"],
@@ -733,32 +817,45 @@ QUESTIONS_TRANSLATION = {
         "Q79_text": "Do you pay ground rent (erfpacht) annually?",
         "Q80_text": f"What was the ground rent canon in {JAAR}?",
         "Q81_text": "Can this real estate be sold separately?",
-        "Q82_text": f"Did you have Dutch debts in {JAAR}?",
-        "Q83_text": f"Upload annual statements for {JAAR} of your Dutch debts.",
-        "Q83_toelicht": "Upload the annual statements of all your Dutch debts, such as a student loan, personal loan, or credit. You can select multiple files at once by holding Ctrl (Windows) or ⌘ Cmd (Mac) while clicking the files. Or press the plus sign that appears once you have uploaded the first file.",
-        "Q84_text": f"Did you have foreign bank accounts and/or foreign investments in {JAAR}?",
-        "Q85_text": f"Upload the annual statements for {JAAR} of your foreign accounts.",
-        "Q85_toelicht": "Upload the annual statements of all your foreign bank accounts and investment accounts. You can select multiple files at once by holding Ctrl (Windows) or ⌘ Cmd (Mac) while clicking the files. Or press the plus sign that appears once you have uploaded the first file.",
-        "Q86_text": f"Did you own real estate abroad in {JAAR}?",
+        "Q81b_text": "Is there a mortgage or other debt on this real estate?",
+        "Q81c_text": f"Upload the {JAAR} annual statement of this mortgage/debt.",
+        "Q82_text": f"Did you (and/or your tax partner) have Dutch debts in {JAAR}?",
+        "Q83_text": f"Upload annual statements for {JAAR} of all Dutch debts.",
+        "Q83_toelicht": f"Upload the annual statements of all Dutch debts of you (and/or your tax partner), such as a student loan, personal loan, or credit. {_UPLOAD_TIP_EN}",
+        "Q84_text": f"Did you (and/or your tax partner) have foreign bank accounts and/or foreign investments in {JAAR}?",
+        "Q85_text": f"Upload the annual statements for {JAAR} of all foreign accounts.",
+        "Q85_toelicht": f"Upload the annual statements of all foreign bank accounts and investment accounts of you (and/or your tax partner). {_UPLOAD_TIP_EN}",
+        # Stap 16 — foreign real estate (repeats per property)
+        "Q86_text": f"Did you (and/or your tax partner) own real estate abroad in {JAAR}?",
+        "Q86_meer_text": f"Did you (and/or your tax partner) own any other real estate abroad in {JAAR}?",
+        "og_object": " (property {k})",
         "Q87_text": "What is the address?",
         "Q88_text": f"What was the value on 1-1-{JAAR}?",
-        "Q89_text": "Was any real estate bought or sold?",
-        "Q90_text": f"Did you have foreign debts in {JAAR}?",
-        "Q91_text": "Describe the foreign debts.",
-        "Q92_text": f"Did you have foreign income in {JAAR}?",
+        "Q88b_text": "Is this real estate fully owned by you (and/or your tax partner)?",
+        "Q88c_text": "What percentage do you (and/or your tax partner) own?",
+        "Q86b_text": "Is there a mortgage or other debt on this real estate?",
+        "Q86c_text": f"Upload the {JAAR} annual statement of this mortgage/debt.",
+        "Q89_text": f"Was this real estate bought or sold in {JAAR}?",
+        "Q89b_text": "On what date did the purchase/sale take place?",
+        "Q89c_text": "For what amount was the real estate bought/sold?",
+        "Q90_text": f"Did you (and/or your tax partner) have foreign debts in {JAAR}?",
+        "Q91_text": f"Describe the foreign debts and state the amount on 1-1-{JAAR} and 31-12-{JAAR}.",
+        "Q91_col2": f"Amount 1-1-{JAAR} (€)",
+        "Q91_col3": f"Amount 31-12-{JAAR} (€)",
+        "Q92_text": f"Did you (and/or your tax partner) have foreign income in {JAAR}?",
         "Q93_text": "What was the source?",
         "Q93_opts": ["Income from employment", "Income as self-employed", "Pension", "Other"],
         "Q94_text": "Was tax withheld?",
         "Q94_opts": ["Yes", "No", "Not entirely sure"],
-        "Q95_text": "Upload proof of foreign income.",
-        "Q95_toelicht": "Upload proof of your foreign income here, such as an annual statement or pay slip. You can select multiple files at once by holding Ctrl (Windows) or ⌘ Cmd (Mac) while clicking the files. Or press the plus sign that appears once you have uploaded the first file.",
-        "Q96_text": f"Did you donate more than EUR 60 to charities in {JAAR}?",
+        "Q95_text": "Upload proof of all foreign income of you (and/or your tax partner).",
+        "Q95_toelicht": f"For example an annual statement or pay slip. {_UPLOAD_TIP_EN}",
+        "Q96_text": f"Did you (and/or your tax partner) donate more than EUR 60 to charities in {JAAR}?",
         "Q97_text": "Please state the amount per charity.",
-        "Q98_text": f"Did you pay extraordinary healthcare expenses in {JAAR}?",
+        "Q98_text": f"Did you (and/or your tax partner) pay extraordinary healthcare expenses in {JAAR}?",
         "Q99_text": "Please state the amount per type of healthcare expense.",
-        "Q100_text": "Are you on a prescribed diet?",
+        "Q100_text": "Are you (and/or your tax partner) on a diet prescribed by a doctor?",
         "Q101_text": "Which diet is it?",
-        "Q102_text": f"Did you receive a provisional tax assessment (voorlopige aanslag) in {JAAR}?",
+        "Q102_text": f"Did you (and/or your tax partner) receive a provisional tax assessment (voorlopige aanslag) in {JAAR}?",
         "Q103_text": "Upload a copy of the provisional assessment.",
         "Q104_text": "Would you like to upload any additional documents?",
         "Q105_text": "Upload additional documents here.",
@@ -771,19 +868,19 @@ QUESTIONS_TRANSLATION = {
 START_TRANSLATION = {
     "NL": {
         "start_title": "Welkom bij de Belastingaangifte Vragenlijst",
-        "start_subtitle": "### Fijn dat u er bent.",
-        "start_body": "Met deze digitale vragenlijst verzamelen we snel en efficiënt alle benodigde gegevens voor uw aangifte. Zo weet u zeker dat u geen aftrekposten mist.",
+        "start_subtitle": "### Fijn dat je er bent.",
+        "start_body": "Met deze digitale vragenlijst verzamelen we snel en efficiënt alle benodigde gegevens voor jouw aangifte. Zo weet je zeker dat je geen aftrekposten mist.",
         "start_info": """
-### 📋 Wat kunt u verwachten en wat heeft u nodig?
+### 📋 Wat kun je verwachten en wat heb je nodig?
 
-Het invullen van de vragenlijst duurt ongeveer **10 tot 15 minuten**. U kunt tussendoor op elk moment terugbladeren om antwoorden aan te passen.
+Het invullen van de vragenlijst duurt ongeveer **10 tot 15 minuten**. Je kunt tussendoor op elk moment terugbladeren om antwoorden aan te passen.
 
-**Zorg dat u de volgende zaken bij de hand heeft:**
-- Uw **9-cijferige BSN** (en eventueel die van uw partner)
+**Zorg dat je de volgende zaken bij de hand hebt:**
+- Jouw **9-cijferige BSN** (en eventueel die van jouw partner)
 - Inkomensgegevens of jaaropgaven
 
 ---
-*🔒 Uw gegevens worden volledig versleuteld en strikt conform de AVG verwerkt.*
+*🔒 Jouw gegevens worden volledig versleuteld en strikt conform de AVG verwerkt.*
         """,
         "start_button": "🚀 Start nu de vragenlijst",
         "main_title": "Belastingaangifte Vragenlijst",
@@ -862,6 +959,14 @@ QUESTIONS = {
         "text": q_vertaling.get("Q7_text"),
         "type": "BSN",
     },
+    "Question 7b": {
+        "text": q_vertaling.get("Q7b_text"),
+        "type": "text",
+    },
+    "Question 7c": {
+        "text": q_vertaling.get("Q7c_text"),
+        "type": "adres",
+    },
     "Question 8": {
         "text": q_vertaling.get("Q8_text"),
         "type": "choice",
@@ -909,6 +1014,10 @@ QUESTIONS = {
         "text": q_vertaling.get("Q15_text"),
         "type": "BSN",
     },
+    "Question 15b": {
+        "text": q_vertaling.get("Q15b_text"),
+        "type": "text",
+    },
     "Question 16": {
         "text": q_vertaling.get("Q16_text"),
         "type": "choice",
@@ -944,55 +1053,56 @@ QUESTIONS = {
             "expected_value": q_vertaling.get("Q19_opt2")
         },
     },
+    # Q19 staat mee in de condities: anders tonen oude antwoorden op Q20 deze vragen nog
     "Question 21": {
         "text": q_vertaling.get("Q21_text"),
         "type": "datum",
-        "depends_on": {
-            "question": "Question 20",
-            "expected_value": q_vertaling.get("Q20_opt1") # Matcht op Immigratie / Immigration
-        },
+        "depends_on": [
+            {"question": "Question 19", "expected_value": q_vertaling.get("Q19_opt2")},
+            {"question": "Question 20", "expected_value": q_vertaling.get("Q20_opt1")},  # Immigratie
+        ],
     },
     "Question 22": {
         "text": q_vertaling.get("Q22_text"),
         "toelichting": q_vertaling.get("Q22_toelicht"),
         "type": "datum",
-        "depends_on": {
-            "question": "Question 20",
-            "expected_value": q_vertaling.get("Q20_opt1")
-        },
+        "depends_on": [
+            {"question": "Question 19", "expected_value": q_vertaling.get("Q19_opt2")},
+            {"question": "Question 20", "expected_value": q_vertaling.get("Q20_opt1")},
+        ],
     },
     "Question 23": {
         "text": q_vertaling.get("Q23_text"),
         "type": "text",
-        "depends_on": {
-            "question": "Question 20",
-            "expected_value": q_vertaling.get("Q20_opt1")
-        },
+        "depends_on": [
+            {"question": "Question 19", "expected_value": q_vertaling.get("Q19_opt2")},
+            {"question": "Question 20", "expected_value": q_vertaling.get("Q20_opt1")},
+        ],
     },
     "Question 24": {
         "text": q_vertaling.get("Q24_text"),
         "type": "datum",
-        "depends_on": {
-            "question": "Question 20",
-            "expected_value": q_vertaling.get("Q20_opt2") # Matcht op Emigratie / Emigration
-        },
+        "depends_on": [
+            {"question": "Question 19", "expected_value": q_vertaling.get("Q19_opt2")},
+            {"question": "Question 20", "expected_value": q_vertaling.get("Q20_opt2")},  # Emigratie
+        ],
     },
     "Question 26": {
         "text": q_vertaling.get("Q26_text"),
         "toelichting": q_vertaling.get("Q26_toelicht"),
         "type": "datum",
-        "depends_on": {
-            "question": "Question 20",
-            "expected_value": q_vertaling.get("Q20_opt2")
-        },
+        "depends_on": [
+            {"question": "Question 19", "expected_value": q_vertaling.get("Q19_opt2")},
+            {"question": "Question 20", "expected_value": q_vertaling.get("Q20_opt2")},
+        ],
     },
     "Question 27": {
         "text": q_vertaling.get("Q27_text"),
         "type": "text",
-        "depends_on": {
-            "question": "Question 20",
-            "expected_value": q_vertaling.get("Q20_opt2")
-        },
+        "depends_on": [
+            {"question": "Question 19", "expected_value": q_vertaling.get("Q19_opt2")},
+            {"question": "Question 20", "expected_value": q_vertaling.get("Q20_opt2")},
+        ],
     },
     "Question 28": {
         "text": q_vertaling.get("Q28_text"),
@@ -1034,6 +1144,21 @@ QUESTIONS = {
             {"question": "Question 31", "expected_value": q_vertaling.get("yes", "Ja")},
         ],
     },
+    # ── Stap 7b: Uitkering / pensioen / lijfrente ────────────────────
+    "Question 32b": {
+        "text": q_vertaling.get("Q32b_text"),
+        "type": "choice",
+        "options": JA_NEE_OPTIES,
+    },
+    "Question 32c": {
+        "text": q_vertaling.get("Q32c_text"),
+        "toelichting": q_vertaling.get("Q32c_toelicht"),
+        "type": "multi_bestand_vrij",
+        "depends_on": {
+            "question": "Question 32b",
+            "expected_value": q_vertaling.get("yes", "Ja")
+        },
+    },
     "Question 33": {
         "text": q_vertaling.get("Q33_text"),
         "toelichting": q_vertaling.get("Q33_toelicht"),
@@ -1067,7 +1192,18 @@ QUESTIONS = {
     },
     "Question 37": {
         "text": q_vertaling.get("Q37_text"),
-        "type": "bestand",
+        "toelichting": q_vertaling.get("Q37_toelicht"),
+        "type": "multi_bestand_vrij",
+        "depends_on": {
+            "question": "Question 33",
+            "expected_value": q_vertaling.get("yes", "Ja")
+        },
+    },
+    "Question 37b": {
+        "text": q_vertaling.get("Q37b_text"),
+        "toelichting": q_vertaling.get("Q37b_toelicht"),
+        "type": "multi_bestand_vrij",
+        "optioneel": True,
         "depends_on": {
             "question": "Question 33",
             "expected_value": q_vertaling.get("yes", "Ja")
@@ -1123,6 +1259,21 @@ QUESTIONS = {
             {"question": "Question 31p", "expected_value": q_vertaling.get("yes", "Ja")},
         ],
     },
+    # ── Stap 7c: Uitkering / pensioen / lijfrente partner ────────────
+    "Question 32bp": {
+        "text": q_vertaling.get("Q32bp_text"),
+        "type": "choice",
+        "options": JA_NEE_OPTIES,
+    },
+    "Question 32cp": {
+        "text": q_vertaling.get("Q32cp_text"),
+        "toelichting": q_vertaling.get("Q32cp_toelicht"),
+        "type": "multi_bestand_vrij",
+        "depends_on": {
+            "question": "Question 32bp",
+            "expected_value": q_vertaling.get("yes", "Ja")
+        },
+    },
     # ── Stap 8a: Ondernemerschap partner ─────────────────────────────
     "Question 33p": {
         "text": q_vertaling.get("Q33p_text"),
@@ -1157,7 +1308,18 @@ QUESTIONS = {
     },
     "Question 37p": {
         "text": q_vertaling.get("Q37p_text"),
-        "type": "bestand",
+        "toelichting": q_vertaling.get("Q37_toelicht"),
+        "type": "multi_bestand_vrij",
+        "depends_on": {
+            "question": "Question 33p",
+            "expected_value": q_vertaling.get("yes", "Ja")
+        },
+    },
+    "Question 37bp": {
+        "text": q_vertaling.get("Q37bp_text"),
+        "toelichting": q_vertaling.get("Q37b_toelicht"),
+        "type": "multi_bestand_vrij",
+        "optioneel": True,
         "depends_on": {
             "question": "Question 33p",
             "expected_value": q_vertaling.get("yes", "Ja")
@@ -1219,6 +1381,23 @@ QUESTIONS = {
             {"question": "Question 43", "expected_value": q_vertaling.get("yes", "Ja")},
         ],
     },
+    "Question 44b": {
+        "text": q_vertaling.get("Q44b_text"),
+        "type": "choice",
+        "options": JA_NEE_OPTIES,
+        "depends_on": {
+            "question": "Question 39",
+            "expected_value": q_vertaling.get("yes", "Ja")
+        },
+    },
+    "Question 44c": {
+        "text": q_vertaling.get("Q44c_text"),
+        "type": "bestand",
+        "depends_on": [
+            {"question": "Question 39", "expected_value": q_vertaling.get("yes", "Ja")},
+            {"question": "Question 44b", "expected_value": q_vertaling.get("yes", "Ja")},
+        ],
+    },
     "Question 45": {
         "text": q_vertaling.get("Q45_text"),
         "type": "choice",
@@ -1236,9 +1415,27 @@ QUESTIONS = {
             {"question": "Question 45", "expected_value": q_vertaling.get("Q45_opts")[0]},
         ],
     },
+    "Question 46b": {
+        "text": q_vertaling.get("Q46b_text"),
+        "type": "datum",
+        "depends_on": [
+            {"question": "Question 39", "expected_value": q_vertaling.get("yes", "Ja")},
+            {"question": "Question 45", "expected_value": q_vertaling.get("Q45_opts")[0]},
+        ],
+    },
     "Question 47": {
         "text": q_vertaling.get("Q47_text"),
         "type": "bestand",
+        "depends_on": [
+            {"question": "Question 39", "expected_value": q_vertaling.get("yes", "Ja")},
+            {"question": "Question 45", "expected_value": q_vertaling.get("Q45_opts")[0]},
+        ],
+    },
+    "Question 47b": {
+        "text": q_vertaling.get("Q47b_text"),
+        "toelichting": q_vertaling.get("taxatie_toelicht"),
+        "type": "bestand",
+        "optioneel": True,
         "depends_on": [
             {"question": "Question 39", "expected_value": q_vertaling.get("yes", "Ja")},
             {"question": "Question 45", "expected_value": q_vertaling.get("Q45_opts")[0]},
@@ -1252,9 +1449,27 @@ QUESTIONS = {
             {"question": "Question 45", "expected_value": q_vertaling.get("Q45_opts")[1]},
         ],
     },
+    "Question 48b": {
+        "text": q_vertaling.get("Q48b_text"),
+        "type": "datum",
+        "depends_on": [
+            {"question": "Question 39", "expected_value": q_vertaling.get("yes", "Ja")},
+            {"question": "Question 45", "expected_value": q_vertaling.get("Q45_opts")[1]},
+        ],
+    },
     "Question 49": {
         "text": q_vertaling.get("Q49_text"),
         "type": "bestand",
+        "depends_on": [
+            {"question": "Question 39", "expected_value": q_vertaling.get("yes", "Ja")},
+            {"question": "Question 45", "expected_value": q_vertaling.get("Q45_opts")[1]},
+        ],
+    },
+    "Question 49b": {
+        "text": q_vertaling.get("Q49b_text"),
+        "toelichting": q_vertaling.get("taxatie_toelicht"),
+        "type": "bestand",
+        "optioneel": True,
         "depends_on": [
             {"question": "Question 39", "expected_value": q_vertaling.get("yes", "Ja")},
             {"question": "Question 45", "expected_value": q_vertaling.get("Q45_opts")[1]},
@@ -1328,6 +1543,14 @@ QUESTIONS = {
             {"question": "Question 56", "expected_value": q_vertaling.get("Q56_opts")[0]},
         ],
     },
+    "Question 57b": {
+        "text": q_vertaling.get("Q57b_text"),
+        "type": "datum",
+        "depends_on": [
+            {"question": "Question 50", "expected_value": q_vertaling.get("yes", "Ja")},
+            {"question": "Question 56", "expected_value": q_vertaling.get("Q56_opts")[0]},
+        ],
+    },
     "Question 58": {
         "text": q_vertaling.get("Q58_text"),
         "type": "bestand",
@@ -1342,6 +1565,14 @@ QUESTIONS = {
         "depends_on": [
             {"question": "Question 50", "expected_value": q_vertaling.get("yes", "Ja")},
             {"question": "Question 56", "expected_value": q_vertaling.get("Q56_opts")[0]},
+        ],
+    },
+    "Question 59b": {
+        "text": q_vertaling.get("Q59b_text"),
+        "type": "datum",
+        "depends_on": [
+            {"question": "Question 50", "expected_value": q_vertaling.get("yes", "Ja")},
+            {"question": "Question 56", "expected_value": q_vertaling.get("Q56_opts")[1]},
         ],
     },
     "Question 60": {
@@ -1419,6 +1650,18 @@ QUESTIONS = {
             {"question": "Question 67", "expected_value": q_vertaling.get("yes", "Ja")},
         ],
     },
+    "Question 68b": {
+        "text": q_vertaling.get("Q68b_text"),
+        "toelichting": q_vertaling.get("Q68b_toelichting"),
+        "type": "tabel",
+        "col1": q_vertaling.get("Q66_col1"),
+        "col2": q_vertaling.get("Q68b_col2"),
+        "prefill_from": "Question 66",
+        "depends_on": [
+            {"question": "Question 65", "expected_value": q_vertaling.get("yes", "Ja")},
+            {"question": "Question 67", "expected_value": q_vertaling.get("yes", "Ja")},
+        ],
+    },
     "Question 69": {
         "text": q_vertaling.get("Q69_text"),
         "type": "choice",
@@ -1438,6 +1681,28 @@ QUESTIONS = {
         "depends_on": [
             {"question": "Question 65", "expected_value": q_vertaling.get("yes", "Ja")},
             {"question": "Question 69", "expected_value": q_vertaling.get("yes", "Ja")},
+        ],
+    },
+    "Question 70b": {
+        "text": q_vertaling.get("Q70b_text"),
+        "type": "choice",
+        "options": JA_NEE_OPTIES,
+        "depends_on": [
+            {"question": "Question 65", "expected_value": q_vertaling.get("yes", "Ja")},
+            {"question": "Question 69", "expected_value": q_vertaling.get("yes", "Ja")},
+        ],
+    },
+    "Question 70c": {
+        "text": q_vertaling.get("Q70c_text"),
+        "toelichting": q_vertaling.get("Q70c_toelichting"),
+        "type": "tabel",
+        "col1": q_vertaling.get("Q66_col1"),
+        "col2": q_vertaling.get("Q70c_col2"),
+        "prefill_from": "Question 66",
+        "depends_on": [
+            {"question": "Question 65", "expected_value": q_vertaling.get("yes", "Ja")},
+            {"question": "Question 69", "expected_value": q_vertaling.get("yes", "Ja")},
+            {"question": "Question 70b", "expected_value": q_vertaling.get("yes", "Ja")},
         ],
     },
     "Question 71": {
@@ -1513,10 +1778,10 @@ QUESTIONS = {
     "Question 80": {
         "text": q_vertaling.get("Q80_text"),
         "type": "int",
-        "depends_on": {
-            "question": "Question 79",
-            "expected_value": q_vertaling.get("yes", "Ja")
-        },
+        "depends_on": [
+            {"question": "Question 74", "expected_value": q_vertaling.get("yes", "Ja")},
+            {"question": "Question 79", "expected_value": q_vertaling.get("yes", "Ja")},
+        ],
     },
     "Question 81": {
         "text": q_vertaling.get("Q81_text"),
@@ -1526,6 +1791,23 @@ QUESTIONS = {
             "question": "Question 74",
             "expected_value": q_vertaling.get("yes", "Ja")
         },
+    },
+    "Question 81b": {
+        "text": q_vertaling.get("Q81b_text"),
+        "type": "choice",
+        "options": JA_NEE_OPTIES,
+        "depends_on": {
+            "question": "Question 74",
+            "expected_value": q_vertaling.get("yes", "Ja")
+        },
+    },
+    "Question 81c": {
+        "text": q_vertaling.get("Q81c_text"),
+        "type": "bestand",
+        "depends_on": [
+            {"question": "Question 74", "expected_value": q_vertaling.get("yes", "Ja")},
+            {"question": "Question 81b", "expected_value": q_vertaling.get("yes", "Ja")},
+        ],
     },
     "Question 82": {
         "text": q_vertaling.get("Q82_text"),
@@ -1555,35 +1837,7 @@ QUESTIONS = {
             "expected_value": q_vertaling.get("yes", "Ja")
         },
     },
-    "Question 86": {
-        "text": q_vertaling.get("Q86_text"),
-        "type": "choice",
-        "options": JA_NEE_OPTIES,
-    },
-    "Question 87": {
-        "text": q_vertaling.get("Q87_text"),
-        "type": "adres",
-        "depends_on": {
-            "question": "Question 86",
-            "expected_value": q_vertaling.get("yes", "Ja")
-        },
-    },
-    "Question 88": {
-        "text": q_vertaling.get("Q88_text"),
-        "type": "int",
-        "depends_on": {
-            "question": "Question 86",
-            "expected_value": q_vertaling.get("yes", "Ja")
-        },
-    },
-    "Question 89": {
-        "text": q_vertaling.get("Q89_text"),
-        "type": "text",
-        "depends_on": {
-            "question": "Question 86",
-            "expected_value": q_vertaling.get("yes", "Ja")
-        },
-    },
+    # Question 86 t/m 89 (buitenlands onroerend goed) worden hieronder per object gegenereerd
     "Question 90": {
         "text": q_vertaling.get("Q90_text"),
         "type": "choice",
@@ -1591,7 +1845,10 @@ QUESTIONS = {
     },
     "Question 91": {
         "text": q_vertaling.get("Q91_text"),
-        "type": "tabel",
+        "type": "tabel_3col",
+        "col1": q_vertaling.get("Q73b_col1"),
+        "col2": q_vertaling.get("Q91_col2"),
+        "col3": q_vertaling.get("Q91_col3"),
         "depends_on": {
             "question": "Question 90",
             "expected_value": q_vertaling.get("yes", "Ja")
@@ -1708,6 +1965,48 @@ QUESTIONS = {
         },
     }
 }
+
+# ── Stap 16: buitenlands onroerend goed, herhaalbaar tot MAX_OG_BUITENLAND objecten ──
+# Object 1 houdt de oorspronkelijke ID's (compatibel met eerdere antwoorden),
+# object k ≥ 2 krijgt het achtervoegsel "_k" (bijv. "Question 87_2").
+# Let op: modules/admin_db.py gebruikt dezelfde ID-opbouw.
+MAX_OG_BUITENLAND = 5
+
+def og_id(basis: str, k: int) -> str:
+    return f"Question {basis}" if k == 1 else f"Question {basis}_{k}"
+
+OG_BUITENLAND_VRAGEN = []
+_ja = q_vertaling.get("yes", "Ja")
+for k in range(1, MAX_OG_BUITENLAND + 1):
+    # Alle voorgaande "heb je (nog meer) onroerend goed"-vragen moeten Ja zijn
+    keten = [{"question": og_id("86", i), "expected_value": _ja} for i in range(1, k + 1)]
+    object_label = "" if k == 1 else q_vertaling.get("og_object").format(k=k)
+
+    blok = {
+        og_id("86", k): {
+            "text": q_vertaling.get("Q86_text") if k == 1 else q_vertaling.get("Q86_meer_text"),
+            "type": "choice",
+            "options": JA_NEE_OPTIES,
+        },
+        og_id("87", k):  {"text": q_vertaling.get("Q87_text") + object_label,  "type": "adres", "depends_on": keten},
+        og_id("88", k):  {"text": q_vertaling.get("Q88_text") + object_label,  "type": "int",   "depends_on": keten},
+        og_id("88b", k): {"text": q_vertaling.get("Q88b_text") + object_label, "type": "choice", "options": JA_NEE_OPTIES, "depends_on": keten},
+        og_id("88c", k): {"text": q_vertaling.get("Q88c_text") + object_label, "type": "int",
+                          "depends_on": keten + [{"question": og_id("88b", k), "expected_value": q_vertaling.get("no", "Nee")}]},
+        og_id("86b", k): {"text": q_vertaling.get("Q86b_text") + object_label, "type": "choice", "options": JA_NEE_OPTIES, "depends_on": keten},
+        og_id("86c", k): {"text": q_vertaling.get("Q86c_text") + object_label, "type": "bestand",
+                          "depends_on": keten + [{"question": og_id("86b", k), "expected_value": _ja}]},
+        og_id("89", k):  {"text": q_vertaling.get("Q89_text") + object_label,  "type": "choice", "options": JA_NEE_OPTIES, "depends_on": keten},
+        og_id("89b", k): {"text": q_vertaling.get("Q89b_text") + object_label, "type": "datum",
+                          "depends_on": keten + [{"question": og_id("89", k), "expected_value": _ja}]},
+        og_id("89c", k): {"text": q_vertaling.get("Q89c_text") + object_label, "type": "int",
+                          "depends_on": keten + [{"question": og_id("89", k), "expected_value": _ja}]},
+    }
+    if k > 1:
+        blok[og_id("86", k)]["depends_on"] = keten[:-1]
+    QUESTIONS.update(blok)
+    OG_BUITENLAND_VRAGEN.extend(blok.keys())
+
 STAPPEN = {
     "START": {
         "titel": s_vertaling.get("START", "Welkom"),
@@ -1720,7 +2019,7 @@ STAPPEN = {
     },
     "Stap 2": {
         "titel": s_vertaling.get("Stap 2", "Persoonlijke gegevens"),
-        "vragen": ["Question 2", "Question 3b", "Question 3", "Question 4", "Question 5", "Question 6","Question 7"],
+        "vragen": ["Question 2", "Question 3b", "Question 3", "Question 4", "Question 5", "Question 6", "Question 7", "Question 7b", "Question 7c"],
         "next_step": "Stap 3"
     },
     "Stap 3": {
@@ -1733,7 +2032,7 @@ STAPPEN = {
     },
     "Stap 4": {
         "titel": s_vertaling.get("Stap 4", "Persoonlijke gegevens van Fiscaal Partner"),
-        "vragen": ["Question 11","Question 11b","Question 12","Question 13","Question 14","Question 15"],
+        "vragen": ["Question 11","Question 11b","Question 12","Question 13","Question 14","Question 15","Question 15b"],
         "next_step": "Stap 5"
     },
     "Stap 5": {
@@ -1742,8 +2041,8 @@ STAPPEN = {
         "next_step": "Stap 6"
     },
     "Stap 6": {
-        "titel": s_vertaling.get("Stap 6", "Waar u woonde"),
-        "vragen": ["Question 19", "Question 20", "Question 21", "Question 22", "Question 23", "Question 24", "Question 25", "Question 27"],
+        "titel": s_vertaling.get("Stap 6", "Waar je woonde"),
+        "vragen": ["Question 19", "Question 20", "Question 21", "Question 22", "Question 23", "Question 24", "Question 26", "Question 27"],
         "next_step": "Stap 7"
     },
     "Stap 7": {
@@ -1751,27 +2050,36 @@ STAPPEN = {
         "vragen": ["Question 28", "Question 29", "Question 30", "Question 31", "Question 32"],
     },
     "Stap 7a": {
-        "titel": s_vertaling.get("Stap 7a", "Inkomen uit loondienst van uw partner"),
+        "titel": s_vertaling.get("Stap 7a", "Inkomen uit loondienst van jouw partner"),
         "vragen": ["Question 28p", "Question 29p", "Question 30p", "Question 31p", "Question 32p"],
+        "next_step": "Stap 7b",
+    },
+    "Stap 7b": {
+        "titel": s_vertaling.get("Stap 7b", "Inkomen uit uitkering / pensioen / lijfrente"),
+        "vragen": ["Question 32b", "Question 32c"],
+    },
+    "Stap 7c": {
+        "titel": s_vertaling.get("Stap 7c", "Inkomen uit uitkering / pensioen / lijfrente van jouw partner"),
+        "vragen": ["Question 32bp", "Question 32cp"],
         "next_step": "Stap 8",
     },
     "Stap 8": {
         "titel": s_vertaling.get("Stap 8", "Inkomen uit ondernemerschap"),
-        "vragen": ["Question 33", "Question 34", "Question 35", "Question 36", "Question 37", "Question 38"],
+        "vragen": ["Question 33", "Question 34", "Question 35", "Question 36", "Question 37", "Question 37b", "Question 38"],
     },
     "Stap 8a": {
-        "titel": s_vertaling.get("Stap 8a", "Inkomen uit ondernemerschap van uw partner"),
-        "vragen": ["Question 33p", "Question 34p", "Question 35p", "Question 36p", "Question 37p", "Question 38p"],
+        "titel": s_vertaling.get("Stap 8a", "Inkomen uit ondernemerschap van jouw partner"),
+        "vragen": ["Question 33p", "Question 34p", "Question 35p", "Question 36p", "Question 37p", "Question 37bp", "Question 38p"],
         "next_step": "Stap 9",
     },
     "Stap 9": {
         "titel": s_vertaling.get("Stap 9", "Eigen woonverblijf"),
-        "vragen": ["Question 39", "Question 40", "Question 41", "Question 42", "Question 43", "Question 44", "Question 45", "Question 46", "Question 47", "Question 48", "Question 49"],
+        "vragen": ["Question 39", "Question 40", "Question 41", "Question 42", "Question 43", "Question 44", "Question 44b", "Question 44c", "Question 45", "Question 46", "Question 46b", "Question 47", "Question 47b", "Question 48", "Question 48b", "Question 49", "Question 49b"],
         "partner_melding": True,
     },
     "Stap 10": {
         "titel": s_vertaling.get("Stap 10", "Tweede eigen woonverblijf"),
-        "vragen": ["Question 50", "Question 51", "Question 52", "Question 53", "Question 54", "Question 55", "Question 56", "Question 57", "Question 58", "Question 59", "Question 60", "Question 61", "Question 62"],
+        "vragen": ["Question 50", "Question 51", "Question 52", "Question 53", "Question 54", "Question 55", "Question 56", "Question 57", "Question 57b", "Question 58", "Question 59", "Question 59b", "Question 60", "Question 61", "Question 62"],
         "partner_melding": True,
     },
     "Stap 11": {
@@ -1782,7 +2090,7 @@ STAPPEN = {
     },
     "Stap 12": {
         "titel": s_vertaling.get("Stap 12", "Aanmerkelijk belang"),
-        "vragen": ["Question 65", "Question 66", "Question 67", "Question 68", "Question 69", "Question 70"],
+        "vragen": ["Question 65", "Question 66", "Question 67", "Question 68", "Question 68b", "Question 69", "Question 70", "Question 70b", "Question 70c"],
         "next_step": "Stap 13",
         "partner_melding": True,
     },
@@ -1794,7 +2102,7 @@ STAPPEN = {
     },
     "Stap 14": {
         "titel": s_vertaling.get("Stap 14", "Tweede eigen woonverblijf"),
-        "vragen": ["Question 74", "Question 75", "Question 76", "Question 77", "Question 78", "Question 79", "Question 80", "Question 81"],
+        "vragen": ["Question 74", "Question 75", "Question 76", "Question 77", "Question 78", "Question 79", "Question 80", "Question 81", "Question 81b", "Question 81c"],
         "next_step": "Stap 15",
         "partner_melding": True,
     },
@@ -1806,13 +2114,13 @@ STAPPEN = {
     },
     "Stap 16": {
         "titel": s_vertaling.get("Stap 16", "Buitenlands vermogen, beleggingen, schulden en inkomen"),
-        "vragen": ["Question 84", "Question 85", "Question 86", "Question 87", "Question 88", "Question 89", "Question 90", "Question 91", "Question 92", "Question 93", "Question 94", "Question 95"],
+        "vragen": ["Question 84", "Question 85", *OG_BUITENLAND_VRAGEN, "Question 90", "Question 91", "Question 92", "Question 93", "Question 94", "Question 95"],
         "next_step": "Stap 17",
         "partner_melding": True,
     },
     "Stap 17": {
         "titel": s_vertaling.get("Stap 17", "Aftrekposten"),
-        "vragen": ["Question 98", "Question 99", "Question 96", "Question 97", "Question 100", "Question 101"],
+        "vragen": ["Question 96", "Question 97", "Question 98", "Question 99", "Question 100", "Question 101"],
         "next_step": "Stap 18",
         "partner_melding": True,
     },
@@ -1882,7 +2190,7 @@ elif current_step and current_step in STAPPEN:
         st.caption(f"{t['caption']}: {current_step}")
         st.subheader(stap_info["titel"])
         if stap_info.get("partner_melding") and st.session_state.antwoorden_log.get("Question 8") == q_vertaling.get("yes", "Ja") or stap_info.get("partner_melding") and st.session_state.antwoorden_log.get("Question 10") == q_vertaling.get("yes", "Ja"):
-            st.warning(q_vertaling.get("partner_melding", "⚠️ Let op! Onderstaande vragen betreffen zowel u als uw partner."))
+            st.warning(q_vertaling.get("partner_melding", "⚠️ Let op! Onderstaande vragen betreffen zowel jou als jouw partner."))
         st.divider()
     # Een tijdelijke dictionary om de geldige antwoorden van DEZE pagina in te verzamelen
     pagina_antwoorden = {}
@@ -2034,7 +2342,7 @@ elif current_step and current_step in STAPPEN:
             if st_searchbox is not None:
                 gekozen_adres = st_searchbox(
                     google_address_autocomplete,
-                    key=st.secrets["GOOGLE_MAPS_API_KEY"],
+                    key=input_key,
                     placeholder="Begin met typen... (bijv. Keizersgracht 123)"
                 )
                 if gekozen_adres:
@@ -2064,7 +2372,7 @@ elif current_step and current_step in STAPPEN:
 
         elif v_type == "BSN":
             default_val = str(bestaand_antwoord) if bestaand_antwoord is not None else ""
-            antwoord_veld = st.text_input("Uw 9-cijferige BSN:", value=default_val, key=input_key)
+            antwoord_veld = st.text_input(t["bsn_label"], value=default_val, key=input_key)
             if antwoord_veld.isdigit() and len(antwoord_veld) == 9:
                 antwoord = antwoord_veld
             elif antwoord_veld:
@@ -2134,6 +2442,8 @@ elif current_step and current_step in STAPPEN:
         elif v_type == "checkbox":
             # Bij een checkbox is False ook een geldig antwoordtype voor de pagina_antwoorden dictionary!
             pagina_antwoorden[q_id] = False
+        elif vraag.get("optioneel"):
+            pass  # Mag leeg blijven (bijv. upload die alleen soms van toepassing is)
         else:
             # Alleen tekstvelden, BSN's, etc. die echt 'None' of leeg zijn triggeren dit
             alle_vragen_geldig = False
@@ -2196,9 +2506,13 @@ elif current_step and current_step in STAPPEN:
                         bepalend_antwoord = pagina_antwoorden.get("Question 8")
                     next_step = route_dict.get(str(bepalend_antwoord))
 
-                # ROUTERING STAP 7: met partner → Stap 7a, zonder → Stap 8
+                # ROUTERING STAP 7: met partner → Stap 7a, zonder → Stap 7b
                 elif current_step == "Stap 7":
-                    next_step = "Stap 7a" if heeft_partner else "Stap 8"
+                    next_step = "Stap 7a" if heeft_partner else "Stap 7b"
+
+                # ROUTERING STAP 7b: met partner → Stap 7c, zonder → Stap 8
+                elif current_step == "Stap 7b":
+                    next_step = "Stap 7c" if heeft_partner else "Stap 8"
 
                 # ROUTERING STAP 8: met partner → Stap 8a, zonder → Stap 9
                 elif current_step == "Stap 8":
