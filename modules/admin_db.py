@@ -298,6 +298,64 @@ def search_records(email_query: str = "", jaar: int = None) -> list:
         return []
 
 
+# ── Documenten opruimen (retentie) ───────────────────────────────
+def _lijst_bestanden(prefix: str, diepte: int = 0) -> list[dict]:
+    """
+    Verzamel alle bestandspaden onder een prefix.
+    Storage kent geen recursieve list, dus we lopen de mappen zelf af:
+    {user_id}/{jaar}/{question_id}/{bestand}
+    """
+    if not admin_supabase or diepte > 3:
+        return []
+    try:
+        entries = admin_supabase.storage.from_("documenten").list(prefix)
+    except Exception:
+        return []
+
+    bestanden = []
+    for entry in entries or []:
+        naam = entry.get("name")
+        if not naam or naam == ".emptyFolderPlaceholder":
+            continue
+        pad = f"{prefix}/{naam}"
+        if entry.get("id"):          # een bestand
+            grootte = (entry.get("metadata") or {}).get("size") or 0
+            bestanden.append({"pad": pad, "grootte": grootte})
+        else:                        # een map: een niveau dieper kijken
+            bestanden.extend(_lijst_bestanden(pad, diepte + 1))
+    return bestanden
+
+
+def documenten_van_record(user_id: str, jaar: int) -> list[dict]:
+    """
+    Alle bestanden die deze klant voor dit jaar heeft geüpload,
+    als lijst van {"pad": ..., "grootte": bytes}.
+    """
+    if not user_id or not jaar:
+        return []
+    return _lijst_bestanden(f"{user_id}/{jaar}")
+
+
+def verwijder_documenten(user_id: str, jaar: int) -> tuple[int, str]:
+    """
+    Verwijder alle geüploade bestanden van één klant voor één jaar.
+    De antwoorden in de database blijven staan; alleen de bestanden in
+    Storage gaan weg. Geeft (aantal verwijderd, foutmelding) terug.
+    """
+    if not admin_supabase:
+        return 0, "Geen Supabase verbinding"
+
+    bestanden = documenten_van_record(user_id, jaar)
+    if not bestanden:
+        return 0, "Geen bestanden gevonden."
+    try:
+        paden = [b["pad"] for b in bestanden]
+        admin_supabase.storage.from_("documenten").remove(paden)
+        return len(paden), ""
+    except Exception as e:
+        return 0, str(e)
+
+
 # ── Nextens ID opslaan ───────────────────────────────────────────
 def sla_nextens_id_op(record_id: str, nextens_id: str) -> tuple[bool, str]:
     """Sla het Nextens ID op in de Supabase record."""

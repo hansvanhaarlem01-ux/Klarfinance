@@ -9,12 +9,12 @@ from modules.ui import setup_page, inject_uploader_label, scroll_to_top
 from modules.auth import show_login_screen, show_logout_button
 from modules.components import phone_input, dynamic_list_input
 from modules.database import (
-    supabase,
+    get_client,
     save_to_supabase,
     load_previous_answers,
     upload_document,
-    get_document_url,
     google_address_autocomplete,
+    TOEGESTANE_BESTANDSTYPES,
 )
 
 try:
@@ -34,7 +34,7 @@ if st.session_state.get("admin_modus", False):
     from modules.admin_db import (
         search_records, get_signed_url, antwoord_naar_tekst,
         export_records_excel, VRAAG_LABELS, STAPPEN_ADMIN,
-        sla_nextens_id_op
+        sla_nextens_id_op, documenten_van_record, verwijder_documenten
     )
     from modules.nextens import (
         zoek_persoon_op_bsn, maak_persoon_aan, update_persoon,
@@ -247,6 +247,46 @@ if st.session_state.get("admin_modus", False):
                     st.write("**Response:**")
                     st.json(api_log["response"])
 
+    # ── Documenten opruimen ────────────────────────────────────────
+    if geselecteerd is not None and geselecteerd < len(records):
+        record  = records[geselecteerd]
+        user_id = record.get("user_id")
+        jaar    = record.get("jaar")
+
+        st.divider()
+        st.subheader("🧹 Documenten opruimen")
+        st.caption(
+            "Verwijdert de geüploade bestanden van deze klant voor dit jaar uit Supabase Storage. "
+            "De antwoorden blijven staan. Doe dit pas nadat de aangifte is verwerkt en de stukken "
+            "in het eigen dossier zijn opgeslagen."
+        )
+
+        if not user_id:
+            st.warning("⚠️ Geen user_id in dit record — opruimen niet mogelijk.")
+        else:
+            bestanden = documenten_van_record(user_id, jaar)
+            if not bestanden:
+                st.info("Geen bestanden gevonden voor deze klant en dit jaar.")
+            else:
+                totaal_mb = sum(b["grootte"] for b in bestanden) / 1024 / 1024
+                st.write(f"**{len(bestanden)} bestand(en)** — samen {totaal_mb:.1f} MB")
+                with st.expander("Toon bestanden", expanded=False):
+                    for b in bestanden:
+                        st.write(f"- {b['pad'].split('/')[-1]}  ·  {b['grootte'] / 1024:.0f} KB")
+
+                bevestigd = st.checkbox(
+                    "Ja, de aangifte is verwerkt — verwijder deze bestanden definitief",
+                    key=f"opruim_bevestig_{user_id}_{jaar}"
+                )
+                if st.button("🗑️ Verwijder bestanden", disabled=not bevestigd, key="opruim_btn"):
+                    with st.spinner("Verwijderen..."):
+                        aantal, fout = verwijder_documenten(user_id, jaar)
+                    if fout:
+                        st.error(f"❌ Verwijderen mislukt: {fout}")
+                    else:
+                        st.success(f"✅ {aantal} bestand(en) verwijderd.")
+                        st.rerun()
+
     # ── Google Places API test ─────────────────────────────────────
     st.divider()
     st.subheader("🔍 Google Places API test")
@@ -411,6 +451,7 @@ UI_TRANSLATION = {
         "saving_db": "Gegevens opslaan in database...",
         "save_success": "✅ Gegevens succesvol opgeslagen!",
         "save_failed": "❌ Opslaan mislukt: ",
+        "upload_failed": "Upload mislukt: ",
         "add_row_btn": "Voeg een regel toe"
     },
     "EN": {
@@ -443,6 +484,7 @@ UI_TRANSLATION = {
         "saving_db": "Saving data to database...",
         "save_success": "✅ Data successfully saved!",
         "save_failed": "❌ Saving failed: ",
+        "upload_failed": "Upload failed: ",
         "add_row_btn": "Add a row"
     }
 }
@@ -2262,14 +2304,15 @@ elif current_step and current_step in STAPPEN:
             uploaded_file = st.file_uploader(
                 "Bestand uploader",
                 key=input_key,
-                label_visibility="collapsed"
+                label_visibility="collapsed",
+                type=TOEGESTANE_BESTANDSTYPES
             )
             if uploaded_file:
-                ok, pad = upload_document(uploaded_file, st.session_state.user.id, JAAR, q_id)
+                ok, pad = upload_document(uploaded_file, st.session_state.user.id, JAAR, q_id, taal)
                 if ok:
                     antwoord = pad
                 else:
-                    st.error(f"Upload mislukt: {pad}")
+                    st.error(t["upload_failed"] + pad)
             elif bestaand_antwoord:
                 st.info(f"📁 Eerder geüpload: **{bestaand_antwoord.split('/')[-1]}**")
                 antwoord = bestaand_antwoord
@@ -2279,16 +2322,17 @@ elif current_step and current_step in STAPPEN:
                 "Bestanden uploader",
                 key=input_key,
                 label_visibility="collapsed",
-                accept_multiple_files=True
+                accept_multiple_files=True,
+                type=TOEGESTANE_BESTANDSTYPES
             )
             if uploaded_files:
                 paden = []
                 for f in uploaded_files:
-                    ok, pad = upload_document(f, st.session_state.user.id, JAAR, q_id)
+                    ok, pad = upload_document(f, st.session_state.user.id, JAAR, q_id, taal)
                     if ok:
                         paden.append(pad)
                     else:
-                        st.error(f"Upload mislukt voor {f.name}: {pad}")
+                        st.error(t["upload_failed"] + f"{f.name} — {pad}")
                 if paden:
                     antwoord = paden
             elif bestaand_antwoord:
@@ -2322,14 +2366,15 @@ elif current_step and current_step in STAPPEN:
                 upload = st.file_uploader(
                     f"Uploader {i + 1}",
                     key=f"{input_key}_{i}",
-                    label_visibility="collapsed"
+                    label_visibility="collapsed",
+                    type=TOEGESTANE_BESTANDSTYPES
                 )
                 if upload:
-                    ok, pad = upload_document(upload, st.session_state.user.id, JAAR, f"{q_id}_{i}")
+                    ok, pad = upload_document(upload, st.session_state.user.id, JAAR, f"{q_id}_{i}", taal)
                     if ok:
                         bestanden.append(pad)
                     else:
-                        st.error(f"Upload mislukt: {pad}")
+                        st.error(t["upload_failed"] + pad)
                 elif eerder_i:
                     st.info(f"📁 Eerder geüpload: **{eerder_i.split('/')[-1]}**")
                     bestanden.append(eerder_i)
@@ -2602,6 +2647,9 @@ else:
                 st.error(f"{t['save_failed']} {msg}")
 
     if st.button(t["restart_btn"], type="primary"):
+        try:
+            get_client().auth.sign_out()
+        except Exception:
+            pass
         st.session_state.clear()
-        supabase.auth.sign_out()
         st.rerun()

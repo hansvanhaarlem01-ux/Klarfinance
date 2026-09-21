@@ -1,3 +1,6 @@
+[server]
+maxUploadSize = 25    # MB per bestand - houd gelijk aan MAX_UPLOAD_MB in modules/database.py
+
 [theme]
 primaryColor = "#e75954"          # De hoofdkleur (voor knoppen, actieve tabbladen, etc.)
 backgroundColor = "#d6e2ea"      # De achtergrondkleur van de app

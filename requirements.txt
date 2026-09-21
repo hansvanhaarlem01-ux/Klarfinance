@@ -3,3 +3,4 @@ supabase>=2.0.0
 pillow>=9.0.0
 pandas>=1.5.0
 openpyxl>=3.0.0
+pillow-heif>=0.13.0   # iPhone .heic-foto's omzetten naar JPEG

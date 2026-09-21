@@ -7,7 +7,7 @@ Roep show_logout_button() aan om de uitlogknop in de sidebar te tonen.
 """
 
 import streamlit as st
-from modules.database import supabase
+from modules.database import get_client
 
 
 def init_auth_state():
@@ -45,7 +45,7 @@ def show_login_screen():
                 st.error("Vul je e-mailadres en wachtwoord in.")
             else:
                 try:
-                    response = supabase.auth.sign_in_with_password(
+                    response = get_client().auth.sign_in_with_password(
                         {"email": email, "password": password}
                     )
                     st.session_state.user = response.user
@@ -74,7 +74,7 @@ def show_login_screen():
                 st.error("Het wachtwoord moet minimaal 6 tekens bevatten.")
             else:
                 try:
-                    supabase.auth.sign_up({"email": reg_email, "password": reg_pw})
+                    get_client().auth.sign_up({"email": reg_email, "password": reg_pw})
                     st.success("Account aangemaakt! Je kunt nu inloggen via het tabblad 'Inloggen'.")
                 except Exception:
                     st.error("Aanmaken mislukt. Mogelijk bestaat dit e-mailadres al.")
@@ -91,7 +91,7 @@ def show_login_screen():
                 st.error("Vul je e-mailadres in.")
             else:
                 try:
-                    supabase.auth.reset_password_email(reset_email)
+                    get_client().auth.reset_password_email(reset_email)
                     st.success("Als dit e-mailadres bij ons bekend is, ontvang je een resetlink.")
                 except Exception:
                     st.error("Er is iets misgegaan. Probeer het later opnieuw.")
@@ -118,6 +118,9 @@ def show_logout_button():
                 st.rerun()
 
         if st.button("Uitloggen"):
+            try:
+                get_client().auth.sign_out()
+            except Exception:
+                pass
             st.session_state.clear()
-            supabase.auth.sign_out()
             st.rerun()

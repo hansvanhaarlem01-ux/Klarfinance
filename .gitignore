@@ -1,0 +1,12 @@
+# Secrets — NOOIT committen, deze repo is publiek
+.streamlit/secrets.toml
+
+# Python
+__pycache__/
+*.py[cod]
+venv/
+
+# Lokale werkbestanden
+backup_*/
+desktop.ini
+*.xlsx
