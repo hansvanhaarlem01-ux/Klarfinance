@@ -1,6 +1,10 @@
-streamlit>=1.40.0
-supabase>=2.0.0
-pillow>=9.0.0
-pandas>=1.5.0
-openpyxl>=3.0.0
-pillow-heif>=0.13.0   # iPhone .heic-foto's omzetten naar JPEG
+# Vastgezet op de versies waarmee lokaal getest is, zodat een nieuwe deploy
+# niet ongemerkt een nieuwe hoofdversie binnenhaalt. Bijwerken = lokaal testen.
+streamlit==1.58.0
+streamlit-searchbox==0.1.24   # adres zoeken met autocomplete (anders valt de app terug op een tekstveld)
+supabase==2.30.1
+pillow==12.2.0
+pandas==3.0.3
+numpy==2.4.6
+openpyxl==3.1.5
+pillow-heif==1.7.0   # iPhone .heic-foto's omzetten naar JPEG

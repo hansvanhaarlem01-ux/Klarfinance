@@ -107,13 +107,24 @@ def _set_auth_token() -> Client:
     """
     Geef de client van deze sessie terug, met het token van de ingelogde
     gebruiker erop gezet (zodat RLS de juiste auth.uid() ziet).
+
+    Een access token is een uur geldig. get_session() ververst hem zelf met
+    het refresh token dat de client bijhoudt. Refresh tokens zijn eenmalig,
+    dus het verse paar gaat terug naar session_state: een oud refresh token
+    opnieuw aanbieden zou worden geweigerd.
     """
     client = get_client()
     try:
-        access_token  = st.session_state.get("access_token")
-        refresh_token = st.session_state.get("refresh_token")
-        if access_token and refresh_token:
-            client.auth.set_session(access_token, refresh_token)
+        sessie = client.auth.get_session()
+        if sessie is None:
+            # Client kwijt (bijv. nieuw aangemaakt): herstel vanuit session_state
+            access_token  = st.session_state.get("access_token")
+            refresh_token = st.session_state.get("refresh_token")
+            if access_token and refresh_token:
+                sessie = client.auth.set_session(access_token, refresh_token).session
+        if sessie is not None:
+            st.session_state.access_token  = sessie.access_token
+            st.session_state.refresh_token = sessie.refresh_token
     except Exception:
         pass
     return client
